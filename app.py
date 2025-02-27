@@ -49,6 +49,7 @@ def index():
     # If POST, get user inputs from the form
     chosen_period = request.form.get('period')
     chosen_troop = request.form.get('troop_id')
+    chosen_troop = int(chosen_troop) 
     chosen_num_girls = request.form.get('number_of_girls')
 
     # Validate inputs
