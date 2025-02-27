@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cookie Sales Predictor</title>
+</head>
+<body>
+    <h1>Cookie Sales Predictor</h1>
+    <form method="POST" action="/">
+        <label for="period">Choose Period (e.g., 5):</label><br>
+        <input type="number" id="period" name="period" min="1" value="5" required><br><br>
+
+        <label for="troop_id">Enter Troop ID:</label><br>
+        <input type="text" id="troop_id" name="troop_id" placeholder="Troop123" required><br><br>
+
+        <label for="number_of_girls">Number of Girls Participating:</label><br>
+        <input type="number" step="0.01" id="number_of_girls" name="number_of_girls" placeholder="20" required><br><br>
+
+        <input type="submit" value="Predict">
+    </form>
+</body>
+</html>
