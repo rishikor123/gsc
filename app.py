@@ -72,36 +72,47 @@ def index():
 
     # Group by cookie_type to train separate models
     predictions = []
+    # In your predictions loop, replace or update the loop with something like this:
     for cookie_type, group in df_troop.groupby('cookie_type'):
-        # Prepare training data
+        # If there is only one unique period, use its value directly.
+        if group['period'].nunique() < 2:
+            last_period = group['period'].max()
+            last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
+            predictions.append({
+                "cookie_type": cookie_type,
+                "predicted_cases": round(last_val, 2),
+                "note": "Using last available period value"
+            })
+            continue
+    
+        # Otherwise, prepare training data and fit the model.
         X_train = group[['period', 'period_squared', 'number_of_girls']]
         y_train = group['number_cases_sold']
         X_train = sm.add_constant(X_train)  # Add intercept
-
+    
         try:
             model = sm.OLS(y_train, X_train).fit()
-            
-            # For the chosen period
+            # For the chosen period (e.g., 5)
             period_squared = chosen_period ** 2
-            # We use the user-specified number_of_girls
             X_test = np.array([[1, chosen_period, period_squared, chosen_num_girls]])
             predicted_cases = model.predict(X_test)[0]
-
-            # Apply guardrails
+    
+            # Apply historical guardrails.
             historical_low = group['historical_low'].iloc[0]
             historical_high = group['historical_high'].iloc[0]
             if predicted_cases < historical_low:
                 predicted_cases = historical_low
             elif predicted_cases > historical_high:
                 predicted_cases = historical_high
-
+    
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(predicted_cases, 2)
             })
-        except:
-            # If model fitting fails, skip this cookie type
+        except Exception as e:
+            # In case of any error, you can skip this cookie type or log the error.
             continue
+
 
     # ----------------------------------------------------------------
     # 3. Return the predictions summary for all cookie types
