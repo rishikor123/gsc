@@ -4,6 +4,7 @@ import statsmodels.api as sm
 import numpy as np
 import warnings
 
+# Suppress warnings from statsmodels
 warnings.simplefilter("ignore", category=RuntimeWarning)
 
 app = Flask(__name__)
@@ -38,43 +39,42 @@ historical_stats.columns = ['troop_id', 'cookie_type', 'historical_low', 'histor
 df = df.merge(historical_stats, on=['troop_id', 'cookie_type'], how='left')
 
 # ----------------------------------------------------------------
-# 2. Home route: show form (GET) and process predictions (POST)
+# 2. Home route: display form (GET) and process predictions (POST)
 # ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'GET':
-        # Render the form
+        # Render the form from templates/index.html
         return render_template('index.html')
 
-    # If POST, get user inputs from the form
+    # On POST, get user inputs from the form
     chosen_period = request.form.get('period')
     chosen_troop = request.form.get('troop_id')
-    chosen_troop = int(chosen_troop) 
     chosen_num_girls = request.form.get('number_of_girls')
 
-    # Validate inputs
+    # Validate and convert inputs:
     try:
         chosen_period = int(chosen_period)
+        # If your CSV stores troop_id as numeric (e.g., 1, 2, 3), convert here:
+        chosen_troop = int(chosen_troop)
         chosen_num_girls = float(chosen_num_girls)
-    except:
-        # Return an error message if invalid input
+    except Exception as e:
         return "Invalid input. Please enter valid numeric values.", 400
 
     # ----------------------------------------------------------------
-    # Filter the dataset to use only periods < chosen_period
-    # for the selected troop. This is our training data.
+    # Filter the dataset to include only periods before the chosen period
+    # for the selected troop.
     # ----------------------------------------------------------------
     df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)]
 
-    # If no data, return an error
+    # If no historical data is found, return an error message.
     if df_troop.empty:
         return f"No historical data found for troop {chosen_troop} with periods before {chosen_period}.", 404
 
     # Group by cookie_type to train separate models
     predictions = []
-    # In your predictions loop, replace or update the loop with something like this:
     for cookie_type, group in df_troop.groupby('cookie_type'):
-        # If there is only one unique period, use its value directly.
+        # If only one unique period is available, return the last available period's sales.
         if group['period'].nunique() < 2:
             last_period = group['period'].max()
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
@@ -84,19 +84,20 @@ def index():
                 "note": "Using last available period value"
             })
             continue
-    
+
         # Otherwise, prepare training data and fit the model.
         X_train = group[['period', 'period_squared', 'number_of_girls']]
         y_train = group['number_cases_sold']
         X_train = sm.add_constant(X_train)  # Add intercept
-    
+
         try:
             model = sm.OLS(y_train, X_train).fit()
-            # For the chosen period (e.g., 5)
+            
+            # For the chosen period (e.g., period 5)
             period_squared = chosen_period ** 2
             X_test = np.array([[1, chosen_period, period_squared, chosen_num_girls]])
             predicted_cases = model.predict(X_test)[0]
-    
+
             # Apply historical guardrails.
             historical_low = group['historical_low'].iloc[0]
             historical_high = group['historical_high'].iloc[0]
@@ -104,20 +105,18 @@ def index():
                 predicted_cases = historical_low
             elif predicted_cases > historical_high:
                 predicted_cases = historical_high
-    
+
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(predicted_cases, 2)
             })
         except Exception as e:
-            # In case of any error, you can skip this cookie type or log the error.
+            # If model fitting fails, skip this cookie type.
             continue
 
-
     # ----------------------------------------------------------------
-    # 3. Return the predictions summary for all cookie types
+    # Return a summary HTML page with the predictions.
     # ----------------------------------------------------------------
-    # Build an HTML snippet or string to display results
     html_result = f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>"
     html_result += f"<p>Number of Girls: {chosen_num_girls}</p>"
     if not predictions:
@@ -125,13 +124,16 @@ def index():
     else:
         html_result += "<ul>"
         for pred in predictions:
-            html_result += f"<li>Cookie Type: {pred['cookie_type']} - Predicted Cases: {pred['predicted_cases']}</li>"
+            html_result += f"<li>Cookie Type: {pred['cookie_type']} - Predicted Cases: {pred['predicted_cases']}"
+            if "note" in pred:
+                html_result += f" ({pred['note']})"
+            html_result += "</li>"
         html_result += "</ul>"
 
     return html_result
 
 # ----------------------------------------------------------------
-# 4. Run in debug mode (for local testing)
+# 3. Run the app in debug mode for local testing
 # ----------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
