@@ -31,6 +31,9 @@ df = df.merge(historical_stats, on=['troop_id', 'cookie_type'], how='left')
 # ---------------------------
 # Prediction Endpoint
 # ---------------------------
+@app.route('/')
+def index():
+    return "Hello, world! This is our home page."
 @app.route('/predict', methods=['POST'])
 def predict():
     data = request.get_json()
