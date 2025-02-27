@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Troop Cookie Sales Predictor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background-color: #f7f7f7;
+      color: #333;
+    }
+    h1 {
+      color: #0056b3;
+    }
+    form {
+      margin: 1rem 0;
+      padding: 1rem;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      max-width: 400px;
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+    }
+    input[type="number"], select {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      box-sizing: border-box;
+    }
+    input[type="submit"] {
+      margin-top: 1.5rem;
+      padding: 0.7rem;
+      width: 100%;
+      background-color: #0056b3;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    input[type="submit"]:hover {
+      background-color: #004494;
+    }
+    #result {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #e6f0ff;
+      border: 1px solid #b3c7e6;
+      border-radius: 5px;
+      max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Troop Cookie Sales Predictor</h1>
+  <p>Select a troop ID and enter the number of girls you expect to sell cookies in 2024 (Period 5):</p>
+  <form id="predictionForm">
+    <label for="troopSelect">Troop ID:</label>
+    <select id="troopSelect" name="troop_id">
+      <option value="Troop1">Troop 1</option>
+      <option value="Troop2">Troop 2</option>
+      <option value="Troop3">Troop 3</option>
+      <!-- Add more troop IDs as needed -->
+    </select>
+
+    <label for="numberOfGirls">Number of Girls:</label>
+    <input type="number" id="numberOfGirls" name="number_of_girls" min="1" required>
+
+    <input type="submit" value="Predict Sales">
+  </form>
+
+  <div id="result"></div>
+
+  <script>
+    // This is a dummy prediction function using placeholder coefficients.
+    // In your actual implementation, you would send the input data to a backend
+    // that runs your Python model and returns the prediction.
+    document.getElementById('predictionForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      // Retrieve input values
+      const troopId = document.getElementById('troopSelect').value;
+      const numGirls = parseFloat(document.getElementById('numberOfGirls').value);
+
+      // For period 5 (2024), we use dummy coefficients (replace these with your model's coefficients)
+      const period = 5;
+      const periodSquared = period * period;
+      const a = 10;    // intercept (dummy)
+      const b = 5;     // coefficient for period (dummy)
+      const c = 2;     // coefficient for period_squared (dummy)
+      const d = 3;     // coefficient for number_of_girls (dummy)
+
+      // Calculate predicted cookie sales
+      const predictedSales = a + (b * period) + (c * periodSquared) + (d * numGirls);
+
+      // Display the prediction result
+      document.getElementById('result').innerHTML = `
+        <h2>Prediction for ${troopId}</h2>
+        <p>Predicted Cookie Sales for Period ${period} (2024): <strong>${predictedSales.toFixed(2)}</strong></p>
+      `;
+    });
+  </script>
+</body>
+</html>
