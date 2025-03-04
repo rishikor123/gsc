@@ -4,12 +4,12 @@ import statsmodels.api as sm
 import numpy as np
 import warnings
 import time
+import re
 
 # Additional imports for Ridge modeling
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
 from tqdm import tqdm
 
 warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -46,7 +46,43 @@ historical_stats.columns = ['troop_id', 'cookie_type', 'historical_low', 'histor
 df = df.merge(historical_stats, on=['troop_id', 'cookie_type'], how='left')
 
 # ----------------------------------------------------------------
-# 2. RIDGE + INTERVAL ANALYSIS FUNCTION
+# 2. NORMALIZATION & MAPPING FOR COOKIE TYPES
+# ----------------------------------------------------------------
+
+# Dictionary that maps normalized forms to a canonical name
+normalized_to_canonical = {
+    'adventurefuls': 'Adventurefuls',
+    'dosidos': 'Do-Si-Dos',
+    'samoas': 'Samoas',
+    'smores': "S'mores",
+    'tagalongs': 'Tagalongs',
+    'thinmints': 'Thin Mints',
+    'toffeetastic': 'Toffee-tastic',
+    'trefoils': 'Trefoils',
+    'lemonups': 'Lemon-Ups'
+}
+
+def normalize_cookie_type(raw_name: str) -> str:
+    """
+    Convert a raw cookie name into a slug by:
+      - Lowercasing
+      - Removing non-alphanumeric chars
+      - Mapping to a canonical name if possible
+    """
+    raw_lower = raw_name.strip().lower()
+    # Remove everything except letters and digits
+    slug = re.sub(r'[^a-z0-9]+', '', raw_lower)
+    # Map slug to a canonical name if in the dict
+    return normalized_to_canonical.get(slug, raw_name)
+
+# Now create a new column in df for the canonical cookie type
+df['canonical_cookie_type'] = df['cookie_type'].apply(normalize_cookie_type)
+
+# Also fix the historical_stats merges if needed, but for simplicity,
+# we'll only use canonical types in the modeling below.
+
+# ----------------------------------------------------------------
+# 3. RIDGE + INTERVAL ANALYSIS FUNCTION
 # ----------------------------------------------------------------
 def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
@@ -54,7 +90,7 @@ def mean_absolute_percentage_error(y_true, y_pred):
 def run_ridge_interval_analysis():
     start_time = time.time()
 
-    groups = df.groupby(['troop_id', 'cookie_type'])
+    groups = df.groupby(['troop_id', 'canonical_cookie_type'])
     total_groups = len(groups)
 
     y_train_all = []
@@ -115,7 +151,7 @@ def run_ridge_interval_analysis():
 
             tdf = test.copy()
             tdf['troop_id'] = troop
-            tdf['cookie_type'] = cookie
+            tdf['canonical_cookie_type'] = cookie
             tdf['predicted'] = best_y_test_pred
             test_records.append(tdf)
 
@@ -176,7 +212,7 @@ def run_ridge_interval_analysis():
     if not test_df_all.empty:
         worst_preds = test_df_all.sort_values('error', ascending=False).head(10)
         print("\nTop 10 Worst Predictions (By Abs Error):")
-        print(worst_preds[['troop_id', 'cookie_type', 'period', 'number_of_girls',
+        print(worst_preds[['troop_id', 'canonical_cookie_type', 'period', 'number_of_girls',
                            'number_cases_sold', 'predicted', 'interval_lower',
                            'interval_upper', 'in_interval', 'error']])
     else:
@@ -190,7 +226,7 @@ def run_ridge_interval_analysis():
 run_ridge_interval_analysis()
 
 # ----------------------------------------------------------------
-# 3. MAIN ROUTE
+# 4. MAIN ROUTE
 # ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -201,21 +237,23 @@ def index():
         return render_template('index.html', troop_ids=troop_ids)
     
     # POST logic
-    chosen_year = request.form.get('year')         # e.g. "5"
-    chosen_troop = request.form.get('troop_id')       # e.g. "123"
+    chosen_year = request.form.get('year')      # e.g. "5"
+    chosen_troop = request.form.get('troop_id') # e.g. "123"
     chosen_num_girls = request.form.get('number_of_girls')
 
     try:
-        chosen_period = int(chosen_year)   # Interpreting "year" as period
+        chosen_period = int(chosen_year)
         chosen_troop = int(chosen_troop)
         chosen_num_girls = float(chosen_num_girls)
     except ValueError:
         return "Invalid input. Please enter valid numeric values.", 400
 
     if chosen_num_girls == 0:
-        return f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>" \
-               f"<p>Number of Girls: {chosen_num_girls}</p>" \
-               f"<p>Since there are zero girls, no cookies will be sold.</p>"
+        return (
+            f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>"
+            f"<p>Number of Girls: {chosen_num_girls}</p>"
+            f"<p>Since there are zero girls, no cookies will be sold.</p>"
+        )
 
     # Filter historical data: periods < chosen_period
     df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)]
@@ -228,30 +266,35 @@ def index():
 
     predictions = []
     
-    # Mapping cookie types to image filenames (stored in static/images/)
+    # Dictionary for image filenames (keyed by canonical name)
     cookie_images = {
         "Adventurefuls": "adventurefuls.jpg",
-        "Lemon-Ups": "lemon_ups.jpg",
+        "Do-Si-Dos": "do_si_dos.jpg",
+        "Samoas": "samoas.jpg",
         "S'mores": "smores.jpg",
         "Tagalongs": "tagalongs.jpg",
         "Thin Mints": "thin_mints.jpg",
-        "Do-si-dos": "do_si_dos.jpg",
-        "Samoas": "samoas.jpg",
         "Toffee-tastic": "toffee_tastic.jpg",
-        "Trefoils": "trefoils.jpg"
+        "Trefoils": "trefoils.jpg",
+        "Lemon-Ups": "lemon_ups.jpg"
     }
 
-    for cookie_type, group in df_troop.groupby('cookie_type'):
+    # Also normalize the cookie types in df_troop to match the canonical name
+    df_troop['canonical_cookie_type'] = df_troop['cookie_type'].apply(normalize_cookie_type)
+
+    for cookie_type, group in df_troop.groupby('canonical_cookie_type'):
+        # If there's not enough historical data (e.g. only 1 period), fallback
         if group['period'].nunique() < 2:
             last_period = group['period'].max()
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
             interval_lower = max(last_val - interval_width, 1)
+            interval_upper = last_val + interval_width
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(last_val, 2),
                 "interval_lower": round(interval_lower, 2),
-                "interval_upper": round(last_val + interval_width, 2),
-                "image_path": url_for('static', filename=cookie_images.get(cookie_type, "default.jpg"))
+                "interval_upper": round(interval_upper, 2),
+                "image_path": url_for('static', filename=cookie_images.get(cookie_type, 'default.jpg'))
             })
             continue
 
@@ -270,12 +313,14 @@ def index():
             predicted_cases = max(historical_low, min(predicted_cases, historical_high))
 
             interval_lower = max(predicted_cases - interval_width, 1)
+            interval_upper = predicted_cases + interval_width
+
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(predicted_cases, 2),
                 "interval_lower": round(interval_lower, 2),
-                "interval_upper": round(predicted_cases + interval_width, 2),
-                "image_path": url_for('static', filename=cookie_images.get(cookie_type, "default.jpg"))
+                "interval_upper": round(interval_upper, 2),
+                "image_path": url_for('static', filename=cookie_images.get(cookie_type, 'default.jpg'))
             })
         except Exception as e:
             print(f"Error processing {cookie_type}: {e}")
@@ -291,7 +336,7 @@ def index():
     )
 
 # ----------------------------------------------------------------
-# 4. RUN APP
+# 5. RUN APP
 # ----------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
