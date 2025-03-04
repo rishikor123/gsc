@@ -23,6 +23,14 @@
         #suggestions li:hover {
             background: #e0e0e0;
         }
+        /* Style for prediction results */
+        .prediction {
+            margin-top: 20px;
+        }
+        .prediction li {
+            list-style: none;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
@@ -54,7 +62,24 @@
         <input type="submit" value="Predict">
     </form>
 
-    <!-- JavaScript for dynamic filtering -->
+    <!-- Display predictions if available -->
+    {% if predictions %}
+    <div class="prediction">
+        <h2>Predictions for Troop: {{ chosen_troop }}, Period: {{ chosen_period }}</h2>
+        <p>Number of Girls: {{ chosen_num_girls }}</p>
+        <ul>
+            {% for pred in predictions %}
+            <li>
+                <img src="{{ pred.image_path }}" alt="{{ pred.cookie_type }}" width="100" height="100">
+                <strong>{{ pred.cookie_type }}</strong> - Predicted Cases: {{ pred.predicted_cases }} - 
+                Interval: [{{ pred.interval_lower }}, {{ pred.interval_upper }}]
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- JavaScript for dynamic filtering of troop IDs -->
     <script>
         // 1) A JavaScript array of all troop IDs (passed in from Flask)
         const allTroopIds = {{ troop_ids|tojson }};
@@ -75,7 +100,6 @@
 
             // Filter the list: any troop ID that starts with typed text
             const filtered = allTroopIds.filter(id => {
-                // Convert both to string in case ID is numeric
                 return id.toString().startsWith(query);
             });
 
@@ -95,15 +119,13 @@
             suggestionItems.forEach(item => {
                 item.addEventListener('click', function() {
                     const chosenId = item.getAttribute('data-id');
-                    // Set the input to that ID
                     troopInput.value = chosenId;
-                    // Clear the suggestions
                     suggestionsBox.innerHTML = '';
                 });
             });
         });
 
-        // Optionally, hide suggestions if user clicks outside
+        // Hide suggestions if user clicks outside
         document.addEventListener('click', function(e) {
             if (!suggestionsBox.contains(e.target) && e.target !== troopInput) {
                 suggestionsBox.innerHTML = '';
