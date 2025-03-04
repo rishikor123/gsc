@@ -1,16 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Cookie Sales Predictor</title>
+    <title>Cookie Sales Predictor (Dynamic Autocomplete)</title>
+    <style>
+        /* Simple styling for suggestions box */
+        #suggestions {
+            border: 1px solid #ccc;
+            max-width: 200px;
+            background: #fefefe;
+            position: absolute;
+            z-index: 999;
+        }
+        #suggestions ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+        #suggestions li {
+            padding: 5px;
+            cursor: pointer;
+        }
+        #suggestions li:hover {
+            background: #e0e0e0;
+        }
+    </style>
 </head>
 <body>
     <h1>Cookie Sales Predictor</h1>
 
     <form method="POST" action="/">
-        <!-- 1) Dropdown for Year -> internally translates to a period -->
+        <!-- Map year -> period in your backend via <option> values -->
         <label for="year">Select Year:</label><br>
         <select id="year" name="year" required>
-            <!-- Example mapping: 2024 -> period 5, 2023 -> period 4, etc. -->
             <option value="5" selected>2024</option>
             <option value="4">2023</option>
             <option value="3">2022</option>
@@ -19,23 +40,75 @@
         </select>
         <br><br>
 
-        <!-- 2) Troop ID input that uses a datalist for auto-complete -->
+        <!-- Troop ID input with dynamic suggestions -->
         <label for="troop_id">Start typing your Troop ID:</label><br>
-        <input list="troopIDs" id="troop_id" name="troop_id" placeholder="e.g. 123" required>
-        <datalist id="troopIDs">
-            <!-- We’ll populate these options dynamically in the Flask GET route -->
-            {% for t_id in troop_ids %}
-                <option value="{{ t_id }}">{{ t_id }}</option>
-            {% endfor %}
-        </datalist>
+        <input type="text" id="troop_id" name="troop_id" placeholder="e.g. 123" autocomplete="off" required>
+        <div id="suggestions"></div>
         <br><br>
 
-        <!-- 3) Number of girls input -->
+        <!-- Number of girls -->
         <label for="number_of_girls">Number of Girls Participating:</label><br>
         <input type="number" step="1" id="number_of_girls" name="number_of_girls" placeholder="20" required>
         <br><br>
 
         <input type="submit" value="Predict">
     </form>
+
+    <!-- JavaScript for dynamic filtering -->
+    <script>
+        // 1) A JavaScript array of all troop IDs (passed in from Flask)
+        const allTroopIds = {{ troop_ids|tojson }};
+
+        // 2) References to input and the suggestions container
+        const troopInput = document.getElementById('troop_id');
+        const suggestionsBox = document.getElementById('suggestions');
+
+        // 3) Listen for each keystroke in #troop_id
+        troopInput.addEventListener('input', function() {
+            const query = troopInput.value.trim();
+
+            // If user cleared input, hide suggestions
+            if (!query) {
+                suggestionsBox.innerHTML = '';
+                return;
+            }
+
+            // Filter the list: any troop ID that starts with typed text
+            const filtered = allTroopIds.filter(id => {
+                // Convert both to string in case ID is numeric
+                return id.toString().startsWith(query);
+            });
+
+            // Build an HTML list of suggestions
+            let html = '';
+            if (filtered.length > 0) {
+                html += '<ul>';
+                filtered.forEach(id => {
+                    html += `<li data-id="${id}">${id}</li>`;
+                });
+                html += '</ul>';
+            }
+            suggestionsBox.innerHTML = html;
+
+            // 4) Add click handler for each suggestion
+            const suggestionItems = suggestionsBox.querySelectorAll('li');
+            suggestionItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const chosenId = item.getAttribute('data-id');
+                    // Set the input to that ID
+                    troopInput.value = chosenId;
+                    // Clear the suggestions
+                    suggestionsBox.innerHTML = '';
+                });
+            });
+        });
+
+        // Optionally, hide suggestions if user clicks outside
+        document.addEventListener('click', function(e) {
+            if (!suggestionsBox.contains(e.target) && e.target !== troopInput) {
+                suggestionsBox.innerHTML = '';
+            }
+        });
+    </script>
 </body>
 </html>
