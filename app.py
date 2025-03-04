@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, url_for
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
@@ -162,7 +162,6 @@ def run_ridge_interval_analysis():
     # Store the overall training RMSE in Flask config
     app.config['OVERALL_RIDGE_RMSE'] = overall_train_rmse
 
-    # Print results to console
     print("\n--- Ridge + Interval Coverage Results ---")
     print("Training Set Metrics:")
     print(f"MAE: {mae_train:.2f}, MSE: {mse_train:.2f}, RMSE: {rmse_train:.2f}, "
@@ -187,66 +186,72 @@ def run_ridge_interval_analysis():
     print(f"\nProcess completed in {end_time - start_time:.2f} seconds.\n")
 
 
-# ----------------------------------------------------------------
-# 3. RUN RIDGE ANALYSIS ONCE AT STARTUP
-# ----------------------------------------------------------------
+# Run Ridge analysis once at startup
 run_ridge_interval_analysis()
 
 # ----------------------------------------------------------------
-# 4. MAIN ROUTE
+# 3. MAIN ROUTE
 # ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    # List of troop IDs for the autocomplete feature
+    troop_ids = sorted(df['troop_id'].unique().tolist())
+    
     if request.method == 'GET':
-        # Gather unique troop IDs
-        troop_ids = sorted(df['troop_id'].unique().tolist())
         return render_template('index.html', troop_ids=troop_ids)
-
+    
     # POST logic
     chosen_year = request.form.get('year')         # e.g. "5"
-    chosen_troop = request.form.get('troop_id')    # e.g. "123"
+    chosen_troop = request.form.get('troop_id')       # e.g. "123"
     chosen_num_girls = request.form.get('number_of_girls')
 
     try:
-        # Interpret "year" as internal "period"
-        chosen_period = int(chosen_year)
+        chosen_period = int(chosen_year)   # Interpreting "year" as period
         chosen_troop = int(chosen_troop)
         chosen_num_girls = float(chosen_num_girls)
     except ValueError:
         return "Invalid input. Please enter valid numeric values.", 400
 
     if chosen_num_girls == 0:
-        return (f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>"
-                f"<p>Number of Girls: {chosen_num_girls}</p>"
-                f"<p>Since there are zero girls, no cookies will be sold.</p>")
+        return f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>" \
+               f"<p>Number of Girls: {chosen_num_girls}</p>" \
+               f"<p>Since there are zero girls, no cookies will be sold.</p>"
 
     # Filter historical data: periods < chosen_period
     df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)]
     if df_troop.empty:
         return f"No historical data found for troop {chosen_troop} before period {chosen_period}.", 404
 
-    # We'll also get the overall Ridge RMSE to build intervals
     overall_ridge_rmse = app.config.get('OVERALL_RIDGE_RMSE', 0.0)
     coverage_factor = 2.0
     interval_width = coverage_factor * overall_ridge_rmse
 
     predictions = []
+    
+    # Mapping cookie types to image filenames (stored in static/images/)
+    cookie_images = {
+        "Adventurefuls": "adventurefuls.jpg",
+        "Lemon-Ups": "lemon_ups.jpg",
+        "S'mores": "smores.jpg",
+        "Tagalongs": "tagalongs.jpg",
+        "Thin Mints": "thin_mints.jpg",
+        "Do-si-dos": "do_si_dos.jpg",
+        "Samoas": "samoas.jpg",
+        "Toffee-tastic": "toffee_tastic.jpg",
+        "Trefoils": "trefoils.jpg"
+    }
+
     for cookie_type, group in df_troop.groupby('cookie_type'):
-        # If only 1 data point, fallback
         if group['period'].nunique() < 2:
             last_period = group['period'].max()
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
-            # Build intervals around this fallback if you like:
-            interval_lower = last_val - interval_width
-            interval_upper = last_val + interval_width
-            # Force lower bound >= 1 if desired
-            interval_lower = max(interval_lower, 1)
+            interval_lower = max(last_val - interval_width, 1)
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(last_val, 2),
                 "interval_lower": round(interval_lower, 2),
-                "interval_upper": round(interval_upper, 2),
-                "note": "Using last available period value"
+                "interval_upper": round(last_val + interval_width, 2),
+                "image_path": url_for('static', filename=cookie_images.get(cookie_type, "default.jpg"))
             })
             continue
 
@@ -260,49 +265,33 @@ def index():
             X_test = np.array([[1, chosen_period, period_squared, chosen_num_girls]])
             predicted_cases = model.predict(X_test)[0]
 
-            # Historical guardrails
             historical_low = group['historical_low'].iloc[0]
             historical_high = group['historical_high'].iloc[0]
             predicted_cases = max(historical_low, min(predicted_cases, historical_high))
 
-            # Build intervals from the *overall* Ridge RMSE
-            interval_lower = predicted_cases - interval_width
-            interval_upper = predicted_cases + interval_width
-            # Force lower bound >= 1 if you prefer
-            interval_lower = max(interval_lower, 1)
-
+            interval_lower = max(predicted_cases - interval_width, 1)
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(predicted_cases, 2),
                 "interval_lower": round(interval_lower, 2),
-                "interval_upper": round(interval_upper, 2)
+                "interval_upper": round(predicted_cases + interval_width, 2),
+                "image_path": url_for('static', filename=cookie_images.get(cookie_type, "default.jpg"))
             })
-        except:
+        except Exception as e:
+            print(f"Error processing {cookie_type}: {e}")
             continue
 
-    # Format HTML response
-    html_result = f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>"
-    html_result += f"<p>Number of Girls: {chosen_num_girls}</p>"
-
-    if not predictions:
-        html_result += "<p>No predictions available.</p>"
-    else:
-        html_result += "<ul>"
-        for pred in predictions:
-            note_str = f" ({pred['note']})" if 'note' in pred else ""
-            html_result += (
-                f"<li>Cookie Type: {pred['cookie_type']} "
-                f"- Predicted Cases: {pred['predicted_cases']}"
-                f"{note_str}"
-                f" - Interval: [{pred['interval_lower']}, {pred['interval_upper']}]"
-                f"</li>"
-            )
-        html_result += "</ul>"
-
-    return html_result
+    return render_template(
+        'index.html',
+        troop_ids=troop_ids,
+        predictions=predictions,
+        chosen_troop=chosen_troop,
+        chosen_period=chosen_period,
+        chosen_num_girls=chosen_num_girls
+    )
 
 # ----------------------------------------------------------------
-# 5. RUN APP
+# 4. RUN APP
 # ----------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
