@@ -5,15 +5,35 @@
 </head>
 <body>
     <h1>Cookie Sales Predictor</h1>
+
     <form method="POST" action="/">
-        <label for="period">Choose Period (e.g., 5):</label><br>
-        <input type="number" id="period" name="period" min="1" value="5" required><br><br>
+        <!-- 1) Dropdown for Year -> internally translates to a period -->
+        <label for="year">Select Year:</label><br>
+        <select id="year" name="year" required>
+            <!-- Example mapping: 2024 -> period 5, 2023 -> period 4, etc. -->
+            <option value="5" selected>2024</option>
+            <option value="4">2023</option>
+            <option value="3">2022</option>
+            <option value="2">2021</option>
+            <option value="1">2020</option>
+        </select>
+        <br><br>
 
-        <label for="troop_id">Enter Troop ID:</label><br>
-        <input type="text" id="troop_id" name="troop_id" placeholder="Troop123" required><br><br>
+        <!-- 2) Troop ID input that uses a datalist for auto-complete -->
+        <label for="troop_id">Start typing your Troop ID:</label><br>
+        <input list="troopIDs" id="troop_id" name="troop_id" placeholder="e.g. 123" required>
+        <datalist id="troopIDs">
+            <!-- We’ll populate these options dynamically in the Flask GET route -->
+            {% for t_id in troop_ids %}
+                <option value="{{ t_id }}">{{ t_id }}</option>
+            {% endfor %}
+        </datalist>
+        <br><br>
 
+        <!-- 3) Number of girls input -->
         <label for="number_of_girls">Number of Girls Participating:</label><br>
-        <input type="number" step="0.01" id="number_of_girls" name="number_of_girls" placeholder="20" required><br><br>
+        <input type="number" step="1" id="number_of_girls" name="number_of_girls" placeholder="20" required>
+        <br><br>
 
         <input type="submit" value="Predict">
     </form>
