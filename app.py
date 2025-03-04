@@ -17,7 +17,7 @@ warnings.simplefilter("ignore", category=RuntimeWarning)
 app = Flask(__name__)
 
 # ----------------------------------------------------------------
-# 1. Load and preprocess dataset once at startup
+# 1. LOAD AND PREPROCESS DATASET ONCE AT STARTUP
 # ----------------------------------------------------------------
 df = pd.read_csv('FinalCookieSales.csv')
 
@@ -33,7 +33,7 @@ df['number_cases_sold'] = pd.to_numeric(df['number_cases_sold'], errors='coerce'
 df = df.dropna()
 df = df[df['number_cases_sold'] > 0]
 
-# Convert to Python ints
+# Convert to Python ints where appropriate
 df['troop_id'] = df['troop_id'].astype(int)
 df['period'] = df['period'].astype(int)
 
@@ -46,7 +46,7 @@ historical_stats.columns = ['troop_id', 'cookie_type', 'historical_low', 'histor
 df = df.merge(historical_stats, on=['troop_id', 'cookie_type'], how='left')
 
 # ----------------------------------------------------------------
-# 2. Ridge + coverage analysis function
+# 2. RIDGE + INTERVAL ANALYSIS FUNCTION
 # ----------------------------------------------------------------
 def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
@@ -68,7 +68,7 @@ def run_ridge_interval_analysis():
     for (troop, cookie), group in tqdm(groups, total=total_groups, desc="Processing Models"):
         group = group.sort_values(by='period')
 
-        # Example train on periods <=4, test on period=5
+        # Example: train on periods <=4, test on period=5
         train = group[group['period'] <= 4]
         test = group[group['period'] == 5]
 
@@ -125,30 +125,31 @@ def run_ridge_interval_analysis():
     y_test_all = np.array(y_test_all)
     y_test_pred_all = np.array(y_test_pred_all)
 
-    # Metrics
+    # Compute overall training metrics
     mae_train = mean_absolute_error(y_train_all, y_train_pred_all)
     mse_train = mean_squared_error(y_train_all, y_train_pred_all)
     rmse_train = np.sqrt(mse_train)
     r2_train = r2_score(y_train_all, y_train_pred_all)
     mape_train = mean_absolute_percentage_error(y_train_all, y_train_pred_all)
 
+    # Compute overall testing metrics
     mae_test = mean_absolute_error(y_test_all, y_test_pred_all)
     mse_test = mean_squared_error(y_test_all, y_test_pred_all)
     rmse_test = np.sqrt(mse_test)
     r2_test = r2_score(y_test_all, y_test_pred_all)
     mape_test = mean_absolute_percentage_error(y_test_all, y_test_pred_all)
 
+    # Build single test DataFrame
     if test_records:
         test_df_all = pd.concat(test_records, ignore_index=True)
     else:
         test_df_all = pd.DataFrame()
 
-    # Compute overall interval coverage with training RMSE
     coverage_factor = 2.0
     overall_train_rmse = rmse_train
     interval_width = coverage_factor * overall_train_rmse
-    coverage_rate = 0
 
+    coverage_rate = 0
     if not test_df_all.empty:
         test_df_all['interval_lower'] = test_df_all['predicted'] - interval_width
         test_df_all['interval_upper'] = test_df_all['predicted'] + interval_width
@@ -159,22 +160,24 @@ def run_ridge_interval_analysis():
         test_df_all['error'] = np.abs(test_df_all['number_cases_sold'] - test_df_all['predicted'])
         coverage_rate = test_df_all['in_interval'].mean() * 100
 
-    # Store overall RMSE in config so we can use it in OLS route if desired
+    # Store the overall training RMSE in Flask config (if we want to use it in OLS route)
     app.config['OVERALL_RIDGE_RMSE'] = overall_train_rmse
 
-    # Print results in console
+    # Print results to console
     print("\n--- Ridge + Interval Coverage Results ---")
     print("Training Set Metrics:")
-    print(f"MAE: {mae_train:.2f}, MSE: {mse_train:.2f}, RMSE: {rmse_train:.2f}, MAPE: {mape_train:.2f}%, R²: {r2_train:.4f}")
+    print(f"MAE: {mae_train:.2f}, MSE: {mse_train:.2f}, RMSE: {rmse_train:.2f}, "
+          f"MAPE: {mape_train:.2f}%, R²: {r2_train:.4f}")
     print("\nTesting Set Metrics:")
-    print(f"MAE: {mae_test:.2f}, MSE: {mse_test:.2f}, RMSE: {rmse_test:.2f}, MAPE: {mape_test:.2f}%, R²: {r2_test:.4f}")
+    print(f"MAE: {mae_test:.2f}, MSE: {mse_test:.2f}, RMSE: {rmse_test:.2f}, "
+          f"MAPE: {mape_test:.2f}%, R²: {r2_test:.4f}")
     print(f"\nOverall Training RMSE: {overall_train_rmse:.2f}")
     print(f"Interval Width: ±({coverage_factor} × {overall_train_rmse:.2f}) = ±{interval_width:.2f}")
     print(f"Overall Test Prediction Interval Coverage: {coverage_rate:.2f}%")
 
     if not test_df_all.empty:
         worst_preds = test_df_all.sort_values('error', ascending=False).head(10)
-        print("\nTop 10 Worst Predictions (By Absolute Error):")
+        print("\nTop 10 Worst Predictions (By Abs Error):")
         print(worst_preds[['troop_id', 'cookie_type', 'period', 'number_of_girls',
                            'number_cases_sold', 'predicted', 'interval_lower',
                            'interval_upper', 'in_interval', 'error']])
@@ -186,48 +189,48 @@ def run_ridge_interval_analysis():
 
 
 # ----------------------------------------------------------------
-# 3. Run the Ridge analysis once at startup
+# 3. RUN RIDGE ANALYSIS ONCE AT STARTUP
 # ----------------------------------------------------------------
 run_ridge_interval_analysis()
 
 # ----------------------------------------------------------------
-# 4. Main route: GET -> show form with year dropdown & troop datalist
-#                 POST -> run OLS predictions
+# 4. MAIN ROUTE
+#    GET -> Renders index.html with all troop_ids for JavaScript auto-complete
+#    POST -> OLS predictions
 # ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'GET':
-        # Gather unique troop IDs for the datalist
+        # Gather unique troop IDs
         troop_ids = sorted(df['troop_id'].unique().tolist())
         return render_template('index.html', troop_ids=troop_ids)
 
-    # POST logic: we expect "year" from the <select>, "troop_id" from the datalist, etc.
-    chosen_year = request.form.get('year')          # e.g. "5" from the <option value="5">2024</option>
-    chosen_troop = request.form.get('troop_id')     # e.g. "123"
+    # POST logic
+    chosen_year = request.form.get('year')         # e.g. "5"
+    chosen_troop = request.form.get('troop_id')    # e.g. "123"
     chosen_num_girls = request.form.get('number_of_girls')
 
     try:
-        # Convert to numeric
-        chosen_period = int(chosen_year)            # interpret the "year" as your internal "period"
-        chosen_troop = int(chosen_troop)            # if troop IDs are numeric
+        # Interpret "year" as internal "period"
+        chosen_period = int(chosen_year)
+        chosen_troop = int(chosen_troop)
         chosen_num_girls = float(chosen_num_girls)
     except ValueError:
         return "Invalid input. Please enter valid numeric values.", 400
 
-    # If number_of_girls is zero, short-circuit
     if chosen_num_girls == 0:
         return (f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>"
                 f"<p>Number of Girls: {chosen_num_girls}</p>"
                 f"<p>Since there are zero girls, no cookies will be sold.</p>")
 
-    # Filter historical data
+    # Filter historical data: periods < chosen_period
     df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)]
     if df_troop.empty:
         return f"No historical data found for troop {chosen_troop} before period {chosen_period}.", 404
 
     predictions = []
     for cookie_type, group in df_troop.groupby('cookie_type'):
-        # If there's only 1 data point, fallback
+        # If only 1 data point, fallback
         if group['period'].nunique() < 2:
             last_period = group['period'].max()
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
@@ -260,7 +263,7 @@ def index():
         except:
             continue
 
-    # Build HTML response
+    # Format HTML response
     html_result = f"<h1>Predictions for Troop: {chosen_troop}, Period: {chosen_period}</h1>"
     html_result += f"<p>Number of Girls: {chosen_num_girls}</p>"
 
@@ -277,7 +280,7 @@ def index():
     return html_result
 
 # ----------------------------------------------------------------
-# 5. Run the app
+# 5. RUN APP
 # ----------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
