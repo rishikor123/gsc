@@ -33,7 +33,7 @@ df['number_cases_sold'] = pd.to_numeric(df['number_cases_sold'], errors='coerce'
 df = df.dropna()
 df = df[df['number_cases_sold'] > 0]
 
-# Convert to Python ints where appropriate
+# Convert to Python ints
 df['troop_id'] = df['troop_id'].astype(int)
 df['period'] = df['period'].astype(int)
 
@@ -139,7 +139,6 @@ def run_ridge_interval_analysis():
     r2_test = r2_score(y_test_all, y_test_pred_all)
     mape_test = mean_absolute_percentage_error(y_test_all, y_test_pred_all)
 
-    # Build single test DataFrame
     if test_records:
         test_df_all = pd.concat(test_records, ignore_index=True)
     else:
@@ -160,7 +159,7 @@ def run_ridge_interval_analysis():
         test_df_all['error'] = np.abs(test_df_all['number_cases_sold'] - test_df_all['predicted'])
         coverage_rate = test_df_all['in_interval'].mean() * 100
 
-    # Store the overall training RMSE in Flask config (if we want to use it in OLS route)
+    # Store the overall training RMSE in Flask config
     app.config['OVERALL_RIDGE_RMSE'] = overall_train_rmse
 
     # Print results to console
@@ -195,8 +194,6 @@ run_ridge_interval_analysis()
 
 # ----------------------------------------------------------------
 # 4. MAIN ROUTE
-#    GET -> Renders index.html with all troop_ids for JavaScript auto-complete
-#    POST -> OLS predictions
 # ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -228,15 +225,27 @@ def index():
     if df_troop.empty:
         return f"No historical data found for troop {chosen_troop} before period {chosen_period}.", 404
 
+    # We'll also get the overall Ridge RMSE to build intervals
+    overall_ridge_rmse = app.config.get('OVERALL_RIDGE_RMSE', 0.0)
+    coverage_factor = 2.0
+    interval_width = coverage_factor * overall_ridge_rmse
+
     predictions = []
     for cookie_type, group in df_troop.groupby('cookie_type'):
         # If only 1 data point, fallback
         if group['period'].nunique() < 2:
             last_period = group['period'].max()
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
+            # Build intervals around this fallback if you like:
+            interval_lower = last_val - interval_width
+            interval_upper = last_val + interval_width
+            # Force lower bound >= 1 if desired
+            interval_lower = max(interval_lower, 1)
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(last_val, 2),
+                "interval_lower": round(interval_lower, 2),
+                "interval_upper": round(interval_upper, 2),
                 "note": "Using last available period value"
             })
             continue
@@ -256,9 +265,17 @@ def index():
             historical_high = group['historical_high'].iloc[0]
             predicted_cases = max(historical_low, min(predicted_cases, historical_high))
 
+            # Build intervals from the *overall* Ridge RMSE
+            interval_lower = predicted_cases - interval_width
+            interval_upper = predicted_cases + interval_width
+            # Force lower bound >= 1 if you prefer
+            interval_lower = max(interval_lower, 1)
+
             predictions.append({
                 "cookie_type": cookie_type,
-                "predicted_cases": round(predicted_cases, 2)
+                "predicted_cases": round(predicted_cases, 2),
+                "interval_lower": round(interval_lower, 2),
+                "interval_upper": round(interval_upper, 2)
             })
         except:
             continue
@@ -272,9 +289,14 @@ def index():
     else:
         html_result += "<ul>"
         for pred in predictions:
-            note = f" ({pred['note']})" if 'note' in pred else ""
-            html_result += (f"<li>Cookie Type: {pred['cookie_type']} "
-                            f"- Predicted Cases: {pred['predicted_cases']}{note}</li>")
+            note_str = f" ({pred['note']})" if 'note' in pred else ""
+            html_result += (
+                f"<li>Cookie Type: {pred['cookie_type']} "
+                f"- Predicted Cases: {pred['predicted_cases']}"
+                f"{note_str}"
+                f" - Interval: [{pred['interval_lower']}, {pred['interval_upper']}]"
+                f"</li>"
+            )
         html_result += "</ul>"
 
     return html_result
