@@ -1,52 +1,114 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cookie Sales Predictions</title>
+    <title>Cookie Sales Predictor (Dynamic Autocomplete)</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        .container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        .cookie-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        .cookie-item img {
-            width: 80px;
-            height: 80px;
-            margin-right: 15px;
-            border-radius: 5px;
+        /* Simple styling for suggestions box */
+        #suggestions {
             border: 1px solid #ccc;
+            max-width: 200px;
+            background: #fefefe;
+            position: absolute;
+            z-index: 999;
+        }
+        #suggestions ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+        #suggestions li {
+            padding: 5px;
+            cursor: pointer;
+        }
+        #suggestions li:hover {
+            background: #e0e0e0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Predictions for Troop: {{ troop_id }}, Period: {{ period }}</h1>
-        <p>Number of Girls: {{ num_girls }}</p>
+    <h1>Cookie Sales Predictor</h1>
 
-        <ul>
-            {% for pred in predictions %}
-                <li class="cookie-item">
-                    <img src="{{ pred.image_path }}" alt="{{ pred.cookie_type }}">
-                    <div>
-                        <strong>{{ pred.cookie_type }}</strong><br>
-                        Predicted Cases: {{ pred.predicted_cases }}<br>
-                        Interval: [{{ pred.interval_lower }}, {{ pred.interval_upper }}]
-                    </div>
-                </li>
-            {% endfor %}
-        </ul>
-    </div>
+    <form method="POST" action="/">
+        <!-- Map year -> period in your backend via <option> values -->
+        <label for="year">Select Year:</label><br>
+        <select id="year" name="year" required>
+            <option value="5" selected>2024</option>
+            <option value="4">2023</option>
+            <option value="3">2022</option>
+            <option value="2">2021</option>
+            <option value="1">2020</option>
+        </select>
+        <br><br>
+
+        <!-- Troop ID input with dynamic suggestions -->
+        <label for="troop_id">Start typing your Troop ID:</label><br>
+        <input type="text" id="troop_id" name="troop_id" placeholder="e.g. 123" autocomplete="off" required>
+        <div id="suggestions"></div>
+        <br><br>
+
+        <!-- Number of girls -->
+        <label for="number_of_girls">Number of Girls Participating:</label><br>
+        <input type="number" step="1" id="number_of_girls" name="number_of_girls" placeholder="20" required>
+        <br><br>
+
+        <input type="submit" value="Predict">
+    </form>
+
+    <!-- JavaScript for dynamic filtering -->
+    <script>
+        // 1) A JavaScript array of all troop IDs (passed in from Flask)
+        const allTroopIds = {{ troop_ids|tojson }};
+
+        // 2) References to input and the suggestions container
+        const troopInput = document.getElementById('troop_id');
+        const suggestionsBox = document.getElementById('suggestions');
+
+        // 3) Listen for each keystroke in #troop_id
+        troopInput.addEventListener('input', function() {
+            const query = troopInput.value.trim();
+
+            // If user cleared input, hide suggestions
+            if (!query) {
+                suggestionsBox.innerHTML = '';
+                return;
+            }
+
+            // Filter the list: any troop ID that starts with typed text
+            const filtered = allTroopIds.filter(id => {
+                // Convert both to string in case ID is numeric
+                return id.toString().startsWith(query);
+            });
+
+            // Build an HTML list of suggestions
+            let html = '';
+            if (filtered.length > 0) {
+                html += '<ul>';
+                filtered.forEach(id => {
+                    html += `<li data-id="${id}">${id}</li>`;
+                });
+                html += '</ul>';
+            }
+            suggestionsBox.innerHTML = html;
+
+            // 4) Add click handler for each suggestion
+            const suggestionItems = suggestionsBox.querySelectorAll('li');
+            suggestionItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const chosenId = item.getAttribute('data-id');
+                    // Set the input to that ID
+                    troopInput.value = chosenId;
+                    // Clear the suggestions
+                    suggestionsBox.innerHTML = '';
+                });
+            });
+        });
+
+        // Optionally, hide suggestions if user clicks outside
+        document.addEventListener('click', function(e) {
+            if (!suggestionsBox.contains(e.target) && e.target !== troopInput) {
+                suggestionsBox.innerHTML = '';
+            }
+        });
+    </script>
 </body>
 </html>
