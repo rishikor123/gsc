@@ -5,13 +5,13 @@ import numpy as np
 import warnings
 import time
 
-# Imports for Ridge and other metrics
+# Additional imports for Ridge modeling
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# TQDM can be used in scripts, but may not display nicely in Flask logs
-# Still, we'll keep it for demonstration
+# TQDM can be used in scripts, but in a Flask environment
+# it will mostly just print in the console/log.
 from tqdm import tqdm
 
 warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -23,25 +23,36 @@ app = Flask(__name__)
 # ----------------------------------------------------------------
 df = pd.read_csv('FinalCookieSales.csv')
 
-# Drop unwanted column
+# Drop 'date' if it exists
 df = df.drop(columns=['date'], errors='ignore')
 
-# Convert numeric columns
+# Convert numeric columns. Force troop_id and period to int, number_of_girls to float
+df['troop_id'] = pd.to_numeric(df['troop_id'], errors='coerce').astype('Int64')
+df['period'] = pd.to_numeric(df['period'], errors='coerce').astype('Int64')
+df['number_of_girls'] = pd.to_numeric(df['number_of_girls'], errors='coerce').astype(float)
 df['number_cases_sold'] = pd.to_numeric(df['number_cases_sold'], errors='coerce')
-df['period'] = pd.to_numeric(df['period'], errors='coerce')
-df['number_of_girls'] = pd.to_numeric(df['number_of_girls'], errors='coerce')
 
-# Drop NaN values
+# Drop rows with any NaN
 df = df.dropna()
 
 # Remove rows where number_cases_sold is 0
 df = df[df['number_cases_sold'] > 0]
 
-# Create squared period column (used by your OLS approach in the route)
+# Ensure troop_id and period are plain Python ints (if you prefer)
+df['troop_id'] = df['troop_id'].astype(int)
+df['period'] = df['period'].astype(int)
+
+# Create squared period column (used in your OLS approach)
 df['period_squared'] = df['period'] ** 2
 
+# Merge or calculate historical min/max if you want to do guardrails
+# Make sure we have them for OLS predictions
+historical_stats = df.groupby(['troop_id', 'cookie_type'])['number_cases_sold'].agg(['min', 'max']).reset_index()
+historical_stats.columns = ['troop_id', 'cookie_type', 'historical_low', 'historical_high']
+df = df.merge(historical_stats, on=['troop_id', 'cookie_type'], how='left')
+
 # ----------------------------------------------------------------
-# 2. (NEW) Run your Ridge + coverage code once at startup
+# 2. Define a function to run Ridge + coverage analysis once
 # ----------------------------------------------------------------
 def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
@@ -68,7 +79,7 @@ def run_ridge_interval_analysis():
     for (troop, cookie), group in tqdm(groups, total=total_groups, desc="Processing Models"):
         group = group.sort_values(by='period')
 
-        # Train on periods 1-4, Test on period 5
+        # Train on periods 1-4, Test on period 5 (example split)
         train = group[group['period'] <= 4]
         test = group[group['period'] == 5]
 
@@ -80,6 +91,7 @@ def run_ridge_interval_analysis():
         X_test = test[['period', 'number_of_girls']]
         y_test = test['number_cases_sold']
 
+        # Skip if still empty
         if X_train.empty:
             continue
 
@@ -148,23 +160,29 @@ def run_ridge_interval_analysis():
     mape_test = mean_absolute_percentage_error(y_test_all, y_test_pred_all)
 
     # Build single test DF
-    test_df_all = pd.concat(test_records, ignore_index=True)
+    if len(test_records) > 0:
+        test_df_all = pd.concat(test_records, ignore_index=True)
+    else:
+        test_df_all = pd.DataFrame()
 
     # Use overall training RMSE to define intervals
     overall_train_rmse = rmse_train
-    coverage_factor = 2.0  # Adjust as you like
+    coverage_factor = 2.0  # Adjust as needed
     interval_width = coverage_factor * overall_train_rmse
 
-    test_df_all['interval_lower'] = test_df_all['predicted'] - interval_width
-    test_df_all['interval_upper'] = test_df_all['predicted'] + interval_width
+    if not test_df_all.empty:
+        test_df_all['interval_lower'] = test_df_all['predicted'] - interval_width
+        test_df_all['interval_upper'] = test_df_all['predicted'] + interval_width
 
-    # Coverage
-    test_df_all['in_interval'] = (
-        (test_df_all['number_cases_sold'] >= test_df_all['interval_lower']) &
-        (test_df_all['number_cases_sold'] <= test_df_all['interval_upper'])
-    )
-    test_df_all['error'] = np.abs(test_df_all['number_cases_sold'] - test_df_all['predicted'])
-    interval_coverage_rate = test_df_all['in_interval'].mean() * 100 if not test_df_all.empty else 0
+        # Coverage
+        test_df_all['in_interval'] = (
+            (test_df_all['number_cases_sold'] >= test_df_all['interval_lower']) &
+            (test_df_all['number_cases_sold'] <= test_df_all['interval_upper'])
+        )
+        test_df_all['error'] = np.abs(test_df_all['number_cases_sold'] - test_df_all['predicted'])
+        interval_coverage_rate = test_df_all['in_interval'].mean() * 100
+    else:
+        interval_coverage_rate = 0
 
     # Print results (visible in Flask console)
     print("\n--- Ridge + Interval Coverage Results ---")
@@ -179,23 +197,26 @@ def run_ridge_interval_analysis():
     print(f"Interval Width: ±({coverage_factor} × {overall_train_rmse:.2f}) = ±{interval_width:.2f}")
     print(f"\nOverall Test Prediction Interval Coverage: {interval_coverage_rate:.2f}%")
 
-    worst_preds = test_df_all.sort_values('error', ascending=False).head(10)
-    print("\nTop 10 Worst Predictions (By Absolute Error):")
-    if not worst_preds.empty:
+    if not test_df_all.empty:
+        worst_preds = test_df_all.sort_values('error', ascending=False).head(10)
+        print("\nTop 10 Worst Predictions (By Absolute Error):")
         print(worst_preds[['troop_id', 'cookie_type', 'period', 'number_of_girls',
                            'number_cases_sold', 'predicted', 'interval_lower',
                            'interval_upper', 'in_interval', 'error']])
     else:
-        print("No test records found.")
+        print("\nNo test data found during Ridge analysis.")
 
     end_time = time.time()
     print(f"\nProcess completed in {end_time - start_time:.2f} seconds.\n")
 
-# Run it once at startup
+# ----------------------------------------------------------------
+# 3. Run your Ridge analysis once at startup
+# ----------------------------------------------------------------
 run_ridge_interval_analysis()
 
 # ----------------------------------------------------------------
-# 3. Existing Home Route for OLS-based predictions
+# 4. Home route: display form (GET) and process predictions (POST)
+#    using OLS approach (unchanged from your example)
 # ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -226,10 +247,9 @@ def index():
     if df_troop.empty:
         return f"No historical data found for troop {chosen_troop} with periods before {chosen_period}.", 404
 
-    # Group by cookie_type to train separate OLS models
     predictions = []
     for cookie_type, group in df_troop.groupby('cookie_type'):
-        # If there's only 1 data point, fall back to last known
+        # If there's only 1 data point, fallback to last known
         if group['period'].nunique() < 2:
             last_period = group['period'].max()
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
@@ -243,7 +263,7 @@ def index():
         # Prepare training data
         X_train = group[['period', 'period_squared', 'number_of_girls']]
         y_train = group['number_cases_sold']
-        X_train = sm.add_constant(X_train)  # statsmodels needs a constant
+        X_train = sm.add_constant(X_train)
 
         try:
             model = sm.OLS(y_train, X_train).fit()
@@ -251,7 +271,7 @@ def index():
             X_test = np.array([[1, chosen_period, period_squared, chosen_num_girls]])
             predicted_cases = model.predict(X_test)[0]
 
-            # Enforce guardrails: within historical min/max
+            # Historical guardrails
             historical_low = group['historical_low'].iloc[0]
             historical_high = group['historical_high'].iloc[0]
             predicted_cases = max(historical_low, min(predicted_cases, historical_high))
@@ -261,7 +281,6 @@ def index():
                 "predicted_cases": round(predicted_cases, 2)
             })
         except Exception:
-            # If fitting fails, skip
             continue
 
     # Format HTML response
@@ -279,7 +298,7 @@ def index():
     return html_result
 
 # ----------------------------------------------------------------
-# 4. Run the app in debug mode for local testing
+# 5. Run the app in debug mode for local testing
 # ----------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
