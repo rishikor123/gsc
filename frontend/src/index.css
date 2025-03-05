@@ -4,10 +4,29 @@
   background: #f2f7f0;
 }
 
+/* Navbar with left and right sections */
 .navbar {
+  display: flex;
+  justify-content: space-between; /* left side, right side */
+  align-items: center;
   background-color: #00a76a;
   color: white;
   padding: 1rem;
+}
+
+.navbar-left h1 {
+  margin: 0;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+}
+
+/* images in top-right corner */
+.header-logo {
+  height: 50px; /* adjust as needed */
+  margin-left: 1rem;
 }
 
 .form-container {
@@ -68,10 +87,9 @@ button:hover {
   margin: 1rem;
 }
 
-/* 3-wide grid for predictions */
 .predictions-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* exactly 3 columns */
+  grid-template-columns: repeat(3, 1fr); /* 3 columns */
   gap: 1.5rem;
 }
 
