@@ -12,10 +12,9 @@ import {
   Line,
 } from "recharts";
 
-// A helper to convert period 1->2020, 2->2021, etc.
+// A helper to convert period # to year (period=1 => 2020, 2 => 2021, etc.)
 function periodToYear(period) {
-  // If period=1 => year=2020, so year = 2019 + period
-  return 2019 + period;
+  return 2019 + period; // Adjust as needed
 }
 
 function App() {
@@ -33,7 +32,11 @@ function App() {
   const [cookieBreakdownData, setCookieBreakdownData] = useState([]);
   const [cookieTypes, setCookieTypes] = useState([]);
 
-  // Fetch troop IDs for autocomplete
+  // Loading bar states
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  // Fetch troop IDs once
   useEffect(() => {
     fetch("http://127.0.0.1:5000/api/troop_ids")
       .then((res) => res.json())
@@ -41,6 +44,7 @@ function App() {
       .catch((err) => console.error("Error fetching troop IDs:", err));
   }, []);
 
+  // Autocomplete logic
   const handleTroopChange = (e) => {
     const value = e.target.value;
     setTroopId(value);
@@ -60,6 +64,7 @@ function App() {
     setSuggestions([]);
   };
 
+  // Predict logic with a 10-second loading bar
   const handlePredict = async (e) => {
     e.preventDefault();
     if (!troopId || !numGirls) {
@@ -67,21 +72,43 @@ function App() {
       return;
     }
 
+    // 1) Show loading bar, reset progress to 0
+    setIsLoading(true);
+    setProgress(0);
+
+    // 2) Animate progress from 0% to 100% over 10 seconds
+    const startTime = Date.now();
+    const totalDuration = 10000; // 10 seconds
+    const intervalId = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      let pct = (elapsed / totalDuration) * 100;
+      if (pct >= 100) {
+        pct = 100;
+        clearInterval(intervalId);
+      }
+      setProgress(pct);
+    }, 100);
+
+    // 3) Also hide the bar after exactly 10s
+    setTimeout(() => {
+      setIsLoading(false);
+    }, totalDuration);
+
     try {
-      // 1) Predictions
+      // 4) Fetch predictions
       const resPred = await fetch("http://127.0.0.1:5000/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           troop_id: troopId,
           num_girls: numGirls,
-          year: 2024, // period=5 => 2024
+          year: 2024, // e.g. period=5 => 2024
         }),
       });
       const dataPred = await resPred.json();
       setPredictions(dataPred);
 
-      // 2) Past sales & girls
+      // 5) Fetch line/bar chart data
       const resHist = await fetch(`http://127.0.0.1:5000/api/history/${troopId}`);
       const dataHist = await resHist.json();
       if (!dataHist.error) {
@@ -89,7 +116,7 @@ function App() {
         setGirlsData(dataHist.girlsByPeriod);
       }
 
-      // 3) Cookie breakdown for stacked bar
+      // 6) Fetch cookie breakdown (stacked bar)
       const resBreak = await fetch(`http://127.0.0.1:5000/api/cookie_breakdown/${troopId}`);
       const dataBreak = await resBreak.json();
       setCookieBreakdownData(dataBreak);
@@ -108,27 +135,26 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* NAVBAR with images in top-right */}
+      {/* NAVBAR */}
       <nav className="navbar">
         <div className="navbar-left">
           <h1>Cookie Sales Predictor</h1>
         </div>
         <div className="navbar-right">
-          {/* If the images are in /public, just reference them as below */}
           <img
-            src="http://127.0.0.1:5000/static/purdue.jpg"
+            src="/purdue.jpg"
             alt="Purdue"
             className="header-logo"
           />
           <img
-            src="http://127.0.0.1:5000/static/gsci.jpg"
+            src="/gsci.jpg"
             alt="GSCI"
             className="header-logo"
           />
         </div>
       </nav>
 
-      {/* Form */}
+      {/* FORM */}
       <div className="form-container">
         <form onSubmit={handlePredict}>
           <label>Troop ID</label>
@@ -160,7 +186,14 @@ function App() {
         </form>
       </div>
 
-      {/* Predictions in a 3-wide grid */}
+      {/* LOADING BAR (only if isLoading) */}
+      {isLoading && (
+        <div className="loading-bar-container">
+          <div className="loading-bar" style={{ width: `${progress}%` }} />
+        </div>
+      )}
+
+      {/* PREDICTIONS (3-wide grid) */}
       {predictions.length > 0 && (
         <div className="predictions-container">
           <h2>Predictions</h2>
@@ -183,7 +216,7 @@ function App() {
         </div>
       )}
 
-      {/* Past Sales + Girls charts */}
+      {/* PAST SALES & GIRLS */}
       {pastSalesData.length > 0 && girlsData.length > 0 && (
         <div className="breakdown-section">
           <h2>Past Sales Breakdown (Troop {troopId})</h2>
@@ -195,7 +228,7 @@ function App() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="period"
-                    tickFormatter={periodToYear} // Convert period to year
+                    tickFormatter={periodToYear}
                   />
                   <YAxis />
                   <Tooltip />
@@ -217,7 +250,7 @@ function App() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="period"
-                    tickFormatter={periodToYear} // Convert period to year
+                    tickFormatter={periodToYear}
                   />
                   <YAxis />
                   <Tooltip />
@@ -230,7 +263,7 @@ function App() {
         </div>
       )}
 
-      {/* Stacked Bar: Cookie Breakdown */}
+      {/* STACKED BAR: COOKIE BREAKDOWN */}
       {cookieBreakdownData.length > 0 && (
         <div className="breakdown-section">
           <h2>Cumulative Cookie Breakdown by Year</h2>
@@ -240,12 +273,11 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="period"
-                  tickFormatter={periodToYear} // Convert period to year
+                  tickFormatter={periodToYear}
                 />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                {/* For each cookie type, add a stacked Bar */}
                 {cookieTypes.map((ct, idx) => (
                   <Bar
                     key={ct}
