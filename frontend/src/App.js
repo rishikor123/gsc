@@ -142,12 +142,12 @@ function App() {
         </div>
         <div className="navbar-right">
           <img
-            src="/purdue.jpg"
+            src="http://127.0.0.1:5000/static/purdue.jpg"
             alt="Purdue"
             className="header-logo"
           />
           <img
-            src="/gsci.jpg"
+            src="http://127.0.0.1:5000/static/gsci.jpg"
             alt="GSCI"
             className="header-logo"
           />
