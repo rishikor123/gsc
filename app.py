@@ -1,5 +1,5 @@
 from flask import Flask, request, render_template, url_for, jsonify
-from flask_cors import CORS  # <-- new import for CORS
+from flask_cors import CORS  # <-- Enable cross-origin requests
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
@@ -15,14 +15,17 @@ from tqdm import tqdm
 warnings.simplefilter("ignore", category=RuntimeWarning)
 
 app = Flask(__name__)
-CORS(app)  # <-- enable CORS for all routes
+CORS(app)  # Allow React (localhost:3000) to call Flask (localhost:5000)
 
 # ----------------------------------------------------------------
 # 1. LOAD AND PREPROCESS DATASET ONCE AT STARTUP
 # ----------------------------------------------------------------
 df = pd.read_csv('FinalCookieSales.csv')
 
+# Drop 'date' if it exists
 df = df.drop(columns=['date'], errors='ignore')
+
+# Convert numeric columns carefully
 df['troop_id'] = pd.to_numeric(df['troop_id'], errors='coerce').astype('Int64')
 df['period'] = pd.to_numeric(df['period'], errors='coerce').astype('Int64')
 df['number_of_girls'] = pd.to_numeric(df['number_of_girls'], errors='coerce').astype(float)
@@ -31,14 +34,19 @@ df['number_cases_sold'] = pd.to_numeric(df['number_cases_sold'], errors='coerce'
 df = df.dropna()
 df = df[df['number_cases_sold'] > 0]
 
+# Convert to Python ints
 df['troop_id'] = df['troop_id'].astype(int)
 df['period'] = df['period'].astype(int)
+
+# Create squared period column for OLS
 df['period_squared'] = df['period'] ** 2
 
+# Calculate historical guardrails
 historical_stats = df.groupby(['troop_id', 'cookie_type'])['number_cases_sold'].agg(['min', 'max']).reset_index()
 historical_stats.columns = ['troop_id', 'cookie_type', 'historical_low', 'historical_high']
 df = df.merge(historical_stats, on=['troop_id', 'cookie_type'], how='left')
 
+# Dictionary that maps normalized forms to a canonical name
 normalized_to_canonical = {
     'adventurefuls': 'Adventurefuls',
     'dosidos': 'Do-Si-Dos',
@@ -56,6 +64,7 @@ def normalize_cookie_type(raw_name: str) -> str:
     slug = re.sub(r'[^a-z0-9]+', '', raw_lower)
     return normalized_to_canonical.get(slug, raw_name)
 
+# Create canonical cookie type column
 df['canonical_cookie_type'] = df['cookie_type'].apply(normalize_cookie_type)
 
 def mean_absolute_percentage_error(y_true, y_pred):
@@ -63,6 +72,7 @@ def mean_absolute_percentage_error(y_true, y_pred):
 
 def run_ridge_interval_analysis():
     start_time = time.time()
+
     groups = df.groupby(['troop_id', 'canonical_cookie_type'])
     total_groups = len(groups)
 
@@ -76,6 +86,8 @@ def run_ridge_interval_analysis():
 
     for (troop, cookie), group in tqdm(groups, total=total_groups, desc="Processing Models"):
         group = group.sort_values(by='period')
+
+        # Example: train on periods <=4, test on period=5
         train = group[group['period'] <= 4]
         test = group[group['period'] == 5]
 
@@ -126,17 +138,20 @@ def run_ridge_interval_analysis():
             tdf['predicted'] = best_y_test_pred
             test_records.append(tdf)
 
+    # Convert to arrays
     y_train_all = np.array(y_train_all)
     y_train_pred_all = np.array(y_train_pred_all)
     y_test_all = np.array(y_test_all)
     y_test_pred_all = np.array(y_test_pred_all)
 
+    # Compute overall training metrics
     mae_train = mean_absolute_error(y_train_all, y_train_pred_all)
     mse_train = mean_squared_error(y_train_all, y_train_pred_all)
     rmse_train = np.sqrt(mse_train)
     r2_train = r2_score(y_train_all, y_train_pred_all)
     mape_train = mean_absolute_percentage_error(y_train_all, y_train_pred_all)
 
+    # Compute overall testing metrics
     mae_test = mean_absolute_error(y_test_all, y_test_pred_all)
     mse_test = mean_squared_error(y_test_all, y_test_pred_all)
     rmse_test = np.sqrt(mse_test)
@@ -152,25 +167,19 @@ def run_ridge_interval_analysis():
     overall_train_rmse = rmse_train
     interval_width = coverage_factor * overall_train_rmse
 
-    coverage_rate = 0
     if not test_df_all.empty:
         test_df_all['interval_lower'] = test_df_all['predicted'] - interval_width
         test_df_all['interval_upper'] = test_df_all['predicted'] + interval_width
-        test_df_all['in_interval'] = (
-            (test_df_all['number_cases_sold'] >= test_df_all['interval_lower']) &
-            (test_df_all['number_cases_sold'] <= test_df_all['interval_upper'])
-        )
-        test_df_all['error'] = np.abs(test_df_all['number_cases_sold'] - test_df_all['predicted'])
-        coverage_rate = test_df_all['in_interval'].mean() * 100
 
     app.config['OVERALL_RIDGE_RMSE'] = overall_train_rmse
     end_time = time.time()
     print(f"Ridge analysis done in {end_time - start_time:.2f} seconds.")
 
+# Run Ridge analysis once at startup
 run_ridge_interval_analysis()
 
 # ----------------------------------------------------------------
-# 4. (OLD) MAIN ROUTE - JINJA TEMPLATE
+# 4. (OLD) MAIN ROUTE - RENDERS JINJA TEMPLATE (Optional)
 # ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -196,7 +205,7 @@ def index():
             f"<p>Since there are zero girls, no cookies will be sold.</p>"
         )
 
-    df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)]
+    df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)].copy()
     if df_troop.empty:
         return f"No historical data found for troop {chosen_troop} before period {chosen_period}.", 404
 
@@ -272,23 +281,25 @@ def index():
     )
 
 # ----------------------------------------------------------------
-# 5. NEW API ROUTES for REACT
+# 5. NEW ROUTES for REACT
 # ----------------------------------------------------------------
+
 @app.route('/api/troop_ids', methods=['GET'])
 def get_troop_ids():
-    # Return a sorted list of unique troop IDs for autocomplete
+    """Return a sorted list of unique troop IDs for autocomplete."""
     troop_ids = sorted(df['troop_id'].unique().tolist())
     return jsonify(troop_ids)
 
 @app.route('/api/predict', methods=['POST'])
 def api_predict():
+    """Return predicted cookie sales for a given troop/year/girls in JSON, including image URLs."""
     data = request.get_json()
     if not data:
         return jsonify({"error": "No input data provided"}), 400
 
     chosen_troop = data.get('troop_id')
     chosen_num_girls = data.get('num_girls')
-    chosen_period = data.get('year', 5)  # default to 5 if not provided
+    chosen_period = data.get('year', 5)  # e.g. 2024 => period=5
 
     try:
         chosen_troop = int(chosen_troop)
@@ -298,31 +309,46 @@ def api_predict():
         return jsonify({"error": "Invalid input. Troop ID, Girls, or Year not numeric."}), 400
 
     if chosen_num_girls == 0:
-        # Return empty or zero predictions if 0 girls
         return jsonify([])
 
-    df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)]
+    df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)].copy()
     if df_troop.empty:
-        return jsonify([])  # No data found for that troop + period
+        return jsonify([])
 
     overall_ridge_rmse = app.config.get('OVERALL_RIDGE_RMSE', 0.0)
     coverage_factor = 2.0
     interval_width = coverage_factor * overall_ridge_rmse
 
     predictions = []
+    cookie_images = {
+        "Adventurefuls": "adventurefuls.jpg",
+        "Do-Si-Dos": "do_si_dos.jpg",
+        "Samoas": "samoas.jpg",
+        "S'mores": "smores.jpg",
+        "Tagalongs": "tagalongs.jpg",
+        "Thin Mints": "thin_mints.jpg",
+        "Toffee-tastic": "toffee_tastic.jpg",
+        "Trefoils": "trefoils.jpg",
+        "Lemon-Ups": "lemon_ups.jpg"
+    }
+
     df_troop['canonical_cookie_type'] = df_troop['cookie_type'].apply(normalize_cookie_type)
 
     for cookie_type, group in df_troop.groupby('canonical_cookie_type'):
+        # If there's not enough historical data, fallback
         if group['period'].nunique() < 2:
             last_period = group['period'].max()
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
             interval_lower = max(last_val - interval_width, 1)
             interval_upper = last_val + interval_width
+            image_filename = cookie_images.get(cookie_type, 'default.jpg')
+            image_url = url_for('static', filename=image_filename, _external=True)
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(last_val, 2),
                 "interval_lower": round(interval_lower, 2),
                 "interval_upper": round(interval_upper, 2),
+                "image_url": image_url
             })
             continue
 
@@ -343,16 +369,54 @@ def api_predict():
             interval_lower = max(predicted_cases - interval_width, 1)
             interval_upper = predicted_cases + interval_width
 
+            image_filename = cookie_images.get(cookie_type, 'default.jpg')
+            image_url = url_for('static', filename=image_filename, _external=True)
+
             predictions.append({
                 "cookie_type": cookie_type,
                 "predicted_cases": round(predicted_cases, 2),
                 "interval_lower": round(interval_lower, 2),
                 "interval_upper": round(interval_upper, 2),
+                "image_url": image_url
             })
         except Exception as e:
             print(f"Error in /api/predict for {cookie_type}: {e}")
 
     return jsonify(predictions)
+
+@app.route('/api/history/<int:troop_id>', methods=['GET'])
+def get_troop_history(troop_id):
+    """
+    Return historical data for the given troop_id:
+      - totalSalesByPeriod: total # of cases sold by period
+      - girlsByPeriod: average # of girls by period
+    """
+    troop_df = df[df['troop_id'] == troop_id].copy()
+    if troop_df.empty:
+        return jsonify({"error": "No data found for that troop"}), 404
+
+    # Summation of all cookies sold per period
+    grouped_sales = troop_df.groupby('period')['number_cases_sold'].sum().reset_index()
+    total_sales = []
+    for _, row in grouped_sales.iterrows():
+        total_sales.append({
+            "period": int(row['period']),
+            "totalSales": float(row['number_cases_sold'])
+        })
+
+    # Average # of girls by period
+    grouped_girls = troop_df.groupby('period')['number_of_girls'].mean().reset_index()
+    girls_data = []
+    for _, row in grouped_girls.iterrows():
+        girls_data.append({
+            "period": int(row['period']),
+            "numberOfGirls": float(row['number_of_girls'])
+        })
+
+    return jsonify({
+        "totalSalesByPeriod": total_sales,
+        "girlsByPeriod": girls_data
+    })
 
 # ----------------------------------------------------------------
 # 6. RUN APP
