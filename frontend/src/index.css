@@ -120,3 +120,19 @@ button:hover {
   min-width: 400px;
   margin-bottom: 2rem;
 }
+
+.loading-bar-container {
+  width: 100%;
+  background: #ddd;
+  height: 8px;
+  margin: 1rem 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.loading-bar {
+  background: #00a76a;
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
