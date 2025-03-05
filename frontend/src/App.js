@@ -17,26 +17,15 @@ function App() {
   const [numGirls, setNumGirls] = useState("");
   const [predictions, setPredictions] = useState([]);
 
-  // All troop IDs from the backend
+  // For autocomplete
   const [allTroopIds, setAllTroopIds] = useState([]);
-  // Filtered suggestions to display under the input
   const [suggestions, setSuggestions] = useState([]);
 
-  // Example data for Past Sales Breakdown (replace with real data if needed)
-  const pastSalesData = [
-    { year: 2020, totalSales: 220 },
-    { year: 2021, totalSales: 280 },
-    { year: 2022, totalSales: 340 },
-    { year: 2023, totalSales: 390 },
-  ];
-  const girlsParticipationData = [
-    { year: 2020, numberOfGirls: 15 },
-    { year: 2021, numberOfGirls: 18 },
-    { year: 2022, numberOfGirls: 20 },
-    { year: 2023, numberOfGirls: 25 },
-  ];
+  // Real historical data (from /api/history)
+  const [pastSalesData, setPastSalesData] = useState([]);
+  const [girlsData, setGirlsData] = useState([]);
 
-  // 1) Fetch all troop IDs on mount, using the full URL to Flask on port 5000
+  // 1) Load troop IDs for autocomplete
   useEffect(() => {
     fetch("http://127.0.0.1:5000/api/troop_ids")
       .then((res) => {
@@ -49,7 +38,7 @@ function App() {
       .catch((err) => console.error("Error fetching troop IDs:", err));
   }, []);
 
-  // Handle typing in the Troop ID input
+  // 2) Autocomplete logic
   const handleTroopChange = (e) => {
     const value = e.target.value;
     setTroopId(value);
@@ -58,20 +47,18 @@ function App() {
       setSuggestions([]);
       return;
     }
-    // Filter allTroopIds to those that start with typed text
     const filtered = allTroopIds.filter((id) =>
       id.toString().startsWith(value)
     );
     setSuggestions(filtered);
   };
 
-  // User clicks on a suggestion to fill the input
   const handleSuggestionClick = (id) => {
     setTroopId(id.toString());
     setSuggestions([]);
   };
 
-  // Handle Predict button
+  // 3) On Predict: fetch predictions, then fetch historical data
   const handlePredict = async (e) => {
     e.preventDefault();
     if (!troopId || !numGirls) {
@@ -80,24 +67,35 @@ function App() {
     }
 
     try {
-      // 2) POST to the full URL of Flask's /api/predict route
+      // 3a) POST to /api/predict
       const response = await fetch("http://127.0.0.1:5000/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           troop_id: troopId,
           num_girls: numGirls,
-          year: 2024, // Hard-code to 2024 if desired
+          year: 2024, // e.g. period=5
         }),
       });
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        throw new Error(`Predict error: ${response.status}`);
       }
       const data = await response.json();
       setPredictions(data);
+
+      // 3b) GET /api/history/<troopId>
+      const histRes = await fetch(`http://127.0.0.1:5000/api/history/${troopId}`);
+      if (!histRes.ok) {
+        throw new Error(`History error: ${histRes.status}`);
+      }
+      const histData = await histRes.json();
+      if (!histData.error) {
+        setPastSalesData(histData.totalSalesByPeriod);  // array of {period, totalSales}
+        setGirlsData(histData.girlsByPeriod);           // array of {period, numberOfGirls}
+      }
     } catch (error) {
-      console.error("Error fetching predictions:", error);
-      alert("There was an error fetching predictions.");
+      console.error("Error fetching data:", error);
+      alert("There was an error fetching predictions or history data.");
     }
   };
 
@@ -119,7 +117,7 @@ function App() {
             placeholder="e.g. 123"
           />
 
-          {/* Autocomplete Suggestions */}
+          {/* Autocomplete suggestions */}
           {suggestions.length > 0 && (
             <ul className="suggestions-list">
               {suggestions.map((id) => (
@@ -143,52 +141,63 @@ function App() {
         </form>
       </div>
 
-      {/* Only show predictions & charts if we have a non-empty response */}
+      {/* Predictions */}
       {predictions.length > 0 && (
         <div className="predictions-container">
           <h2>Predictions</h2>
           {predictions.map((p) => (
             <div key={p.cookie_type} className="prediction-card">
+              <img
+                src={p.image_url}
+                alt={p.cookie_type}
+                style={{ width: 120, height: "auto" }}
+              />
               <h3>{p.cookie_type}</h3>
               <p>Predicted Cases: {p.predicted_cases}</p>
-              <p>Interval: [{p.interval_lower}, {p.interval_upper}]</p>
+              <p>
+                Interval: [{p.interval_lower}, {p.interval_upper}]
+              </p>
             </div>
           ))}
+        </div>
+      )}
 
-          <div className="breakdown-section">
-            <h2>Past Sales Breakdown</h2>
-            <div className="chart-row">
-              <div className="chart-container">
-                <h4>Total Sales by Year</h4>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={pastSalesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="year" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="totalSales"
-                      stroke="#8884d8"
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="chart-container">
-                <h4>Girls Participating</h4>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={girlsParticipationData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="year" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="numberOfGirls" fill="#82ca9d" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+      {/* Historical Charts */}
+      {/* Only show if we actually have data (pastSalesData, girlsData) */}
+      {pastSalesData.length > 0 && girlsData.length > 0 && (
+        <div className="breakdown-section">
+          <h2>Past Sales Breakdown (Troop {troopId})</h2>
+          <div className="chart-row">
+            <div className="chart-container">
+              <h4>Total Cookie Sales by Period</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={pastSalesData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="period" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="totalSales"
+                    stroke="#8884d8"
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="chart-container">
+              <h4>Number of Girls (Avg) by Period</h4>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={girlsData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="period" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="numberOfGirls" fill="#82ca9d" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
