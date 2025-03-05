@@ -12,6 +12,7 @@
 
 .form-container {
   margin: 1rem;
+  position: relative; /* so suggestions can be absolutely positioned */
 }
 
 .form-container form {
@@ -41,6 +42,26 @@ button {
 
 button:hover {
   background-color: #008f5b;
+}
+
+.suggestions-list {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  max-width: 200px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  position: absolute;
+  z-index: 999;
+}
+
+.suggestions-list li {
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.suggestions-list li:hover {
+  background-color: #f0f0f0;
 }
 
 .predictions-container {
