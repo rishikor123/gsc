@@ -36,9 +36,9 @@ function App() {
     { year: 2023, numberOfGirls: 25 },
   ];
 
-  // Fetch all troop IDs on mount
+  // 1) Fetch all troop IDs on mount, using the full URL to Flask on port 5000
   useEffect(() => {
-    fetch("/api/troop_ids")
+    fetch("http://127.0.0.1:5000/api/troop_ids")
       .then((res) => {
         if (!res.ok) {
           throw new Error("Failed to fetch troop IDs");
@@ -80,7 +80,8 @@ function App() {
     }
 
     try {
-      const response = await fetch("/api/predict", {
+      // 2) POST to the full URL of Flask's /api/predict route
+      const response = await fetch("http://127.0.0.1:5000/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
