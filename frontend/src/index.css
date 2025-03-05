@@ -1,0 +1,74 @@
+.app-container {
+  font-family: Arial, sans-serif;
+  min-height: 100vh;
+  background: #f2f7f0;
+}
+
+.navbar {
+  background-color: #00a76a;
+  color: white;
+  padding: 1rem;
+}
+
+.form-container {
+  margin: 1rem;
+}
+
+.form-container form {
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+}
+
+.form-container label {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.form-container input {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+}
+
+button {
+  background-color: #00a76a;
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+button:hover {
+  background-color: #008f5b;
+}
+
+.predictions-container {
+  margin: 1rem;
+}
+
+.prediction-card {
+  background: #fff;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.breakdown-section {
+  margin: 2rem;
+}
+
+.chart-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+
+.chart-container {
+  flex: 1 1 400px;
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
