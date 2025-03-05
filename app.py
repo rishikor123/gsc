@@ -1,4 +1,5 @@
-from flask import Flask, request, render_template, url_for
+from flask import Flask, request, render_template, url_for, jsonify
+from flask_cors import CORS  # <-- new import for CORS
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
@@ -11,14 +12,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from tqdm import tqdm
 
-# NEW IMPORT
-from flask_cors import CORS
-
 warnings.simplefilter("ignore", category=RuntimeWarning)
 
 app = Flask(__name__)
-# NEW LINE: Enable CORS for all routes
-CORS(app)
+CORS(app)  # <-- enable CORS for all routes
 
 # ----------------------------------------------------------------
 # 1. LOAD AND PREPROCESS DATASET ONCE AT STARTUP
@@ -66,7 +63,6 @@ def mean_absolute_percentage_error(y_true, y_pred):
 
 def run_ridge_interval_analysis():
     start_time = time.time()
-
     groups = df.groupby(['troop_id', 'canonical_cookie_type'])
     total_groups = len(groups)
 
@@ -168,18 +164,20 @@ def run_ridge_interval_analysis():
         coverage_rate = test_df_all['in_interval'].mean() * 100
 
     app.config['OVERALL_RIDGE_RMSE'] = overall_train_rmse
-
     end_time = time.time()
     print(f"Ridge analysis done in {end_time - start_time:.2f} seconds.")
 
 run_ridge_interval_analysis()
 
+# ----------------------------------------------------------------
+# 4. (OLD) MAIN ROUTE - JINJA TEMPLATE
+# ----------------------------------------------------------------
 @app.route('/', methods=['GET', 'POST'])
 def index():
     troop_ids = sorted(df['troop_id'].unique().tolist())
     if request.method == 'GET':
         return render_template('index.html', troop_ids=troop_ids)
-
+    
     chosen_year = request.form.get('year')
     chosen_troop = request.form.get('troop_id')
     chosen_num_girls = request.form.get('number_of_girls')
@@ -273,26 +271,91 @@ def index():
         chosen_num_girls=chosen_num_girls
     )
 
-# ---------------------- ADD THESE NEW ROUTES IF YOU'RE USING REACT API CALLS ----------------------
-# (Optional) If your React code calls "/api/troop_ids" or "/api/predict", you need routes like these:
+# ----------------------------------------------------------------
+# 5. NEW API ROUTES for REACT
+# ----------------------------------------------------------------
+@app.route('/api/troop_ids', methods=['GET'])
+def get_troop_ids():
+    # Return a sorted list of unique troop IDs for autocomplete
+    troop_ids = sorted(df['troop_id'].unique().tolist())
+    return jsonify(troop_ids)
 
-# from flask import jsonify
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No input data provided"}), 400
 
-# @app.route('/api/troop_ids', methods=['GET'])
-# def get_troop_ids():
-#     # Return a sorted list of unique troop IDs for autocomplete
-#     troop_ids = sorted(df['troop_id'].unique().tolist())
-#     return jsonify(troop_ids)
+    chosen_troop = data.get('troop_id')
+    chosen_num_girls = data.get('num_girls')
+    chosen_period = data.get('year', 5)  # default to 5 if not provided
 
-# @app.route('/api/predict', methods=['POST'])
-# def api_predict():
-#     # Parse JSON and run your logic, return JSON
-#     data = request.get_json()
-#     # ...
-#     return jsonify(predictions)
+    try:
+        chosen_troop = int(chosen_troop)
+        chosen_num_girls = float(chosen_num_girls)
+        chosen_period = int(chosen_period)
+    except ValueError:
+        return jsonify({"error": "Invalid input. Troop ID, Girls, or Year not numeric."}), 400
+
+    if chosen_num_girls == 0:
+        # Return empty or zero predictions if 0 girls
+        return jsonify([])
+
+    df_troop = df[(df['troop_id'] == chosen_troop) & (df['period'] < chosen_period)]
+    if df_troop.empty:
+        return jsonify([])  # No data found for that troop + period
+
+    overall_ridge_rmse = app.config.get('OVERALL_RIDGE_RMSE', 0.0)
+    coverage_factor = 2.0
+    interval_width = coverage_factor * overall_ridge_rmse
+
+    predictions = []
+    df_troop['canonical_cookie_type'] = df_troop['cookie_type'].apply(normalize_cookie_type)
+
+    for cookie_type, group in df_troop.groupby('canonical_cookie_type'):
+        if group['period'].nunique() < 2:
+            last_period = group['period'].max()
+            last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
+            interval_lower = max(last_val - interval_width, 1)
+            interval_upper = last_val + interval_width
+            predictions.append({
+                "cookie_type": cookie_type,
+                "predicted_cases": round(last_val, 2),
+                "interval_lower": round(interval_lower, 2),
+                "interval_upper": round(interval_upper, 2),
+            })
+            continue
+
+        X_train = group[['period', 'period_squared', 'number_of_girls']]
+        y_train = group['number_cases_sold']
+        X_train = sm.add_constant(X_train)
+
+        try:
+            model = sm.OLS(y_train, X_train).fit()
+            period_squared = chosen_period ** 2
+            X_test = np.array([[1, chosen_period, period_squared, chosen_num_girls]])
+            predicted_cases = model.predict(X_test)[0]
+
+            historical_low = group['historical_low'].iloc[0]
+            historical_high = group['historical_high'].iloc[0]
+            predicted_cases = max(historical_low, min(predicted_cases, historical_high))
+
+            interval_lower = max(predicted_cases - interval_width, 1)
+            interval_upper = predicted_cases + interval_width
+
+            predictions.append({
+                "cookie_type": cookie_type,
+                "predicted_cases": round(predicted_cases, 2),
+                "interval_lower": round(interval_lower, 2),
+                "interval_upper": round(interval_upper, 2),
+            })
+        except Exception as e:
+            print(f"Error in /api/predict for {cookie_type}: {e}")
+
+    return jsonify(predictions)
 
 # ----------------------------------------------------------------
-# RUN APP
+# 6. RUN APP
 # ----------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
