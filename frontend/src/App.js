@@ -1,88 +1,102 @@
+// App.js
 import React, { useState, useEffect } from "react";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
+  CartesianGrid,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  LineChart,
+  Line,
 } from "recharts";
-import "./index.css"; // Make sure this path is correct based on your structure
+import "./index.css";
 
-const periodToYear = (period) => 2019 + period;
+const cookies = [
+  { name: "Adventurefuls", image: "ADVEN.png" },
+  { name: "Do-Si-Dos", image: "DOSI.png" },
+  { name: "Lemon-Ups", image: "LMNUP.png" },
+  { name: "Samoas", image: "SAM.png" },
+  { name: "Tagalongs", image: "TAG.png" },
+  { name: "Thin Mints", image: "THIN.png" },
+  { name: "Toffee-Tastic", image: "TFTAS.png" },
+  { name: "Trefoils", image: "TREF.png" },
+  { name: "S'mores", image: "SMORE.png" },
+];
 
-const App = () => {
+function periodToYear(period) {
+  return 2019 + period;
+}
+
+function App() {
   const [troopId, setTroopId] = useState("");
   const [numGirls, setNumGirls] = useState("");
   const [suUnit, setSuUnit] = useState("");
-  const [predictions, setPredictions] = useState([]);
-  const [analytics, setAnalytics] = useState({ sales: [], girls: [], breakdown: [] });
+  const [predictions, setPredictions] = useState({});
+  const [pastSalesData, setPastSalesData] = useState([]);
+  const [girlsData, setGirlsData] = useState([]);
+  const [cookieBreakdownData, setCookieBreakdownData] = useState([]);
+  const [cookieTypes, setCookieTypes] = useState([]);
 
   const handlePredict = async () => {
-    if (!troopId || !numGirls) {
-      alert("Please enter Troop ID and Number of Girls.");
-      return;
-    }
-
     try {
-      const resPred = await fetch("http://localhost:5000/api/predict", {
+      const resPred = await fetch("http://127.0.0.1:5000/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           troop_id: troopId,
           num_girls: numGirls,
-          year: 2024
-        })
+          year: 2024,
+        }),
       });
-      const predData = await resPred.json();
-      setPredictions(predData);
-
-      const resHist = await fetch(`http://localhost:5000/api/history/${troopId}`);
-      const histData = await resHist.json();
-
-      const resBreak = await fetch(`http://localhost:5000/api/cookie_breakdown/${troopId}`);
-      const breakData = await resBreak.json();
-
-      setAnalytics({
-        sales: histData.totalSalesByPeriod || [],
-        girls: histData.girlsByPeriod || [],
-        breakdown: breakData || []
+      const dataPred = await resPred.json();
+      const formatted = {};
+      dataPred.forEach((d) => {
+        formatted[d.cookie_type] = {
+          predictedCases: d.predicted_cases,
+          interval: [d.interval_lower, d.interval_upper],
+        };
       });
+      setPredictions(formatted);
+
+      const resHist = await fetch(`http://127.0.0.1:5000/api/history/${troopId}`);
+      const dataHist = await resHist.json();
+      if (!dataHist.error) {
+        setPastSalesData(dataHist.totalSalesByPeriod);
+        setGirlsData(dataHist.girlsByPeriod);
+      }
+
+      const resBreak = await fetch(`http://127.0.0.1:5000/api/cookie_breakdown/${troopId}`);
+      const dataBreak = await resBreak.json();
+      setCookieBreakdownData(dataBreak);
+      if (dataBreak.length > 0) {
+        const keys = Object.keys(dataBreak[0]).filter((k) => k !== "period");
+        setCookieTypes(keys);
+      } else {
+        setCookieTypes([]);
+      }
     } catch (err) {
-      console.error("Error fetching data:", err);
+      console.error("Error fetching prediction or analytics:", err);
     }
   };
 
-  const getColor = (idx) => {
-    const palette = [
-      "#8884d8", "#82ca9d", "#ffc658", "#d0ed57", "#a4de6c",
-      "#8dd1e1", "#d88884", "#ad8de1", "#84d8a4", "#e1cf8d"
-    ];
-    return palette[idx % palette.length];
-  };
-
-  const cookieKeys = analytics.breakdown.length > 0
-    ? Object.keys(analytics.breakdown[0]).filter(key => key !== "period")
-    : [];
-
   return (
-    <div>
+    <div className="main-container">
       <div className="background"></div>
       <div className="overlay"></div>
-      <div className="header">
+
+      <header className="header">
         <div>
-          <img src="/static/GSC(2).png" alt="GSCI Logo" />
-          <img src="/static/KREN.png" alt="KREN Logo" />
+          <img src="GSC(2).png" alt="GSCI Logo" />
+          <img src="KREN.png" alt="KREN Logo" />
         </div>
         <a href="manual.html" className="manual">Manual</a>
-      </div>
+      </header>
 
-      <div className="title">Cookie Forecasting Model</div>
-      <div className="subtitle">Forecasting Sales, One Cookie at a Time</div>
+      <h1 className="title">Cookie Forecasting Model</h1>
+      <p className="subtitle">Forecasting Sales, One Cookie at a Time</p>
 
       <div className="input-container">
         <p>Enter the details below to forecast cookie sales</p>
@@ -98,46 +112,41 @@ const App = () => {
         <button className="predict-button" onClick={handlePredict}>Predict</button>
       </div>
 
-      {predictions.length > 0 && (
-        <>
-          <div className="predictions">PREDICTIONS</div>
-          <div className="cookie-grid">
-            {predictions.map((cookie, i) => (
-              <div className="cookie-box" key={i}>
-                <img src={cookie.image_url} alt={cookie.cookie_type} />
-                <div className="cookie-info">
-                  <strong>{cookie.cookie_type}</strong><br />
-                  Predicted Cases: <span>{cookie.predicted_cases}</span><br />
-                  Interval: <span>[{cookie.interval_lower}, {cookie.interval_upper}]</span>
-                </div>
-              </div>
-            ))}
+      <div className="predictions">PREDICTIONS</div>
+      <div className="cookie-grid">
+        {cookies.map((cookie) => (
+          <div key={cookie.name} className="cookie-box">
+            <img src={cookie.image} alt={cookie.name} />
+            <div className="cookie-info">
+              <strong>{cookie.name}</strong>
+              <br />
+              Predicted Cases: <span>{predictions[cookie.name]?.predictedCases ?? "--"}</span>
+              <br />
+              Interval: <span>{predictions[cookie.name] ? `[${predictions[cookie.name].interval[0]}, ${predictions[cookie.name].interval[1]}]` : "--"}</span>
+            </div>
           </div>
-        </>
-      )}
+        ))}
+      </div>
 
-      {(analytics.sales.length > 0 || analytics.girls.length > 0 || analytics.breakdown.length > 0) && (
-        <div className="analytics-title">ANALYTICS</div>
-      )}
+      <div className="analytics-title">ANALYTICS</div>
       <div className="analysis-section">
         <div className="analysis-box">
-          <h4>Total Sales by Year</h4>
+          <h4>Total Cookie Sales by Year</h4>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={analytics.sales}>
+            <LineChart data={pastSalesData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="period" tickFormatter={periodToYear} />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="totalSales" stroke="#8884d8" strokeWidth={2} />
+              <Line type="monotone" dataKey="totalSales" stroke="#8884d8" strokeWidth={3} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-
         <div className="analysis-box">
-          <h4>Number of Girls by Year</h4>
+          <h4>Number of Girls (Avg) by Year</h4>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={analytics.girls}>
+            <BarChart data={girlsData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="period" tickFormatter={periodToYear} />
               <YAxis />
@@ -147,29 +156,40 @@ const App = () => {
             </BarChart>
           </ResponsiveContainer>
         </div>
-
-        <div className="analysis-box">
-          <h4>Cookie Breakdown by Year</h4>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={analytics.breakdown}>
+        <div className="analysis-box" style={{ gridColumn: "span 2" }}>
+          <h4>Cumulative Cookie Breakdown by Year</h4>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={cookieBreakdownData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="period" tickFormatter={periodToYear} />
               <YAxis />
               <Tooltip />
               <Legend />
-              {cookieKeys.map((key, idx) => (
-                <Bar key={key} dataKey={key} stackId="a" fill={getColor(idx)} />
+              {cookieTypes.map((ct, idx) => (
+                <Bar key={ct} dataKey={ct} stackId="a" fill={getColor(idx)} name={ct} />
               ))}
             </BarChart>
           </ResponsiveContainer>
         </div>
-
-        <div className="analysis-box">
-          <h4>More Analytics Coming Soon</h4>
-        </div>
       </div>
     </div>
   );
-};
+}
+
+function getColor(idx) {
+  const palette = [
+    "#8884d8",
+    "#82ca9d",
+    "#ffc658",
+    "#d0ed57",
+    "#a4de6c",
+    "#8dd1e1",
+    "#d88884",
+    "#ad8de1",
+    "#84d8a4",
+    "#e1cf8d",
+  ];
+  return palette[idx % palette.length];
+}
 
 export default App;
