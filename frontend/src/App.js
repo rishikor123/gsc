@@ -27,7 +27,7 @@ function App() {
   const [suggestions, setSuggestions] = useState([]);
 
   useEffect(() => {
-    fetch("/api/troop_ids")
+    fetch("http://localhost:5000/api/troop_ids")
       .then((res) => res.json())
       .then((data) => setAllTroopIds(data))
       .catch((err) => console.error("Error fetching troop IDs:", err));
@@ -58,7 +58,7 @@ function App() {
     }
 
     try {
-      const resPred = await fetch("/api/predict", {
+      const resPred = await fetch("http://localhost:5000/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -70,10 +70,10 @@ function App() {
       const predData = await resPred.json();
       setPredictions(predData);
 
-      const resHist = await fetch(`/api/history/${troopId}`);
+      const resHist = await fetch(`http://localhost:5000/api/history/${troopId}`);
       const histData = await resHist.json();
 
-      const resBreak = await fetch(`/api/cookie_breakdown/${troopId}`);
+      const resBreak = await fetch(`http://localhost:5000/api/cookie_breakdown/${troopId}`);
       const breakData = await resBreak.json();
 
       setAnalytics({
@@ -104,7 +104,7 @@ function App() {
       <div className="overlay"></div>
       <div className="header">
         <div>
-          <img src="/static/GSC.png" alt="GSCI Logo" />
+          <img src="/static/GSC(2).png" alt="GSCI Logo" />
           <img src="/static/KREN.png" alt="KREN Logo" />
         </div>
         <a href="manual.html" className="manual">Manual</a>
@@ -141,7 +141,7 @@ function App() {
           <div className="cookie-grid">
             {predictions.map((cookie, i) => (
               <div className="cookie-box" key={i}>
-                <img src={cookie.image_url} alt={cookie.cookie_type} />
+                <img src={`http://localhost:5000${cookie.image_url}`} alt={cookie.cookie_type} />
                 <div className="cookie-info">
                   <strong>{cookie.cookie_type}</strong><br/>
                   Predicted Cases: <span>{cookie.predicted_cases}</span><br/>
