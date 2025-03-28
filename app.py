@@ -4,7 +4,6 @@ import pandas as pd
 import statsmodels.api as sm
 import numpy as np
 import warnings
-import time
 import re
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
