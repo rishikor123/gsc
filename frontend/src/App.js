@@ -14,15 +14,15 @@ import {
 import "./index.css";
 
 const cookies = [
-  { name: "Adventurefuls", image: "ADVEN.png" },
-  { name: "Do-Si-Dos", image: "DOSI.png" },
-  { name: "Lemon-Ups", image: "LMNUP.png" },
-  { name: "Samoas", image: "SAM.png" },
-  { name: "Tagalongs", image: "TAG.png" },
-  { name: "Thin Mints", image: "THIN.png" },
-  { name: "Toffee-Tastic", image: "TFTAS.png" },
-  { name: "Trefoils", image: "TREF.png" },
-  { name: "S'mores", image: "SMORE.png" }
+  { name: "Adventurefuls", image: "/static/ADVEN.png" },
+  { name: "Do-Si-Dos", image: "/static/DOSI.png" },
+  { name: "Lemon-Ups", image: "/static/LMNUP.png" },
+  { name: "Samoas", image: "/static/SAM.png" },
+  { name: "Tagalongs", image: "/static/TAG.png" },
+  { name: "Thin Mints", image: "/static/THIN.png" },
+  { name: "Toffee-Tastic", image: "/static/TFTAS.png" },
+  { name: "Trefoils", image: "/static/TREF.png" },
+  { name: "S'mores", image: "/static/SMORE.png" }
 ];
 
 function periodToYear(period) {
@@ -106,7 +106,9 @@ function App() {
     return palette[idx % palette.length];
   };
 
-  const cookieKeys = analytics.breakdown.length > 0 ? Object.keys(analytics.breakdown[0]).filter(key => key !== "period") : [];
+  const cookieKeys = analytics.breakdown.length > 0
+    ? Object.keys(analytics.breakdown[0]).filter(key => key !== "period")
+    : [];
 
   return (
     <div>
@@ -114,10 +116,10 @@ function App() {
       <div className="overlay"></div>
       <div className="header">
         <div>
-          <img src="GSC(2).png" alt="GSCI Logo" />
-          <img src="KREN.png" alt="KREN Logo" />
+          <img src="/static/GSC(2).png" alt="GSCI Logo" />
+          <img src="/static/KREN.png" alt="KREN Logo" />
         </div>
-        <a href="manual.html" className="manual">Manual</a>
+        <a href="/manual.html" className="manual">Manual</a>
       </div>
       <div className="title">Cookie Forecasting Model</div>
       <div className="subtitle">Forecasting Sales, One Cookie at a Time</div>
