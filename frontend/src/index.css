@@ -1,3 +1,4 @@
+/* App.css */
 body {
   margin: 0;
   padding: 0;
@@ -8,7 +9,7 @@ body {
 }
 
 .background {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
@@ -18,7 +19,7 @@ body {
 }
 
 .overlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
@@ -47,7 +48,6 @@ body {
   padding: 10px 15px;
   border-radius: 5px;
   cursor: pointer;
-  text-decoration: none;
 }
 
 .title {
@@ -62,6 +62,11 @@ body {
   font-size: 18px;
   font-weight: 400;
   margin-bottom: 50px;
+}
+
+.input-section {
+  text-align: center;
+  margin: 20px;
 }
 
 .input-container {
@@ -82,13 +87,6 @@ body {
   width: 50%;
 }
 
-.input-box input {
-  margin-left: 10px;
-  padding: 5px;
-  border-radius: 4px;
-  border: none;
-}
-
 .predict-button {
   display: block;
   margin: 20px auto;
@@ -101,7 +99,8 @@ body {
   border-radius: 5px;
 }
 
-.predictions, .analytics-title {
+.predictions,
+.analytics-title {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
