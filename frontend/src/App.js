@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from "react";
 import {
+  LineChart,
+  Line,
   BarChart,
   Bar,
   XAxis,
   YAxis,
-  Tooltip,
   CartesianGrid,
+  Tooltip,
   Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
+  ResponsiveContainer
 } from "recharts";
+import "./index.css";
 
 const cookies = [
   { name: "Adventurefuls", image: "ADVEN.png" },
@@ -21,7 +22,7 @@ const cookies = [
   { name: "Thin Mints", image: "THIN.png" },
   { name: "Toffee-Tastic", image: "TFTAS.png" },
   { name: "Trefoils", image: "TREF.png" },
-  { name: "S'mores", image: "SMORE.png" },
+  { name: "S'mores", image: "SMORE.png" }
 ];
 
 function periodToYear(period) {
@@ -33,10 +34,34 @@ function App() {
   const [numGirls, setNumGirls] = useState("");
   const [suUnit, setSuUnit] = useState("");
   const [predictions, setPredictions] = useState([]);
-  const [pastSalesData, setPastSalesData] = useState([]);
-  const [girlsData, setGirlsData] = useState([]);
-  const [cookieBreakdownData, setCookieBreakdownData] = useState([]);
-  const [cookieTypes, setCookieTypes] = useState([]);
+  const [analytics, setAnalytics] = useState({ sales: [], girls: [], breakdown: [] });
+  const [allTroopIds, setAllTroopIds] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/troop_ids")
+      .then((res) => res.json())
+      .then((data) => setAllTroopIds(data))
+      .catch((err) => console.error("Error fetching troop IDs:", err));
+  }, []);
+
+  const handleTroopChange = (e) => {
+    const value = e.target.value;
+    setTroopId(value);
+    if (!value) {
+      setSuggestions([]);
+      return;
+    }
+    const filtered = allTroopIds.filter((id) =>
+      id.toString().startsWith(value)
+    );
+    setSuggestions(filtered);
+  };
+
+  const handleSuggestionClick = (id) => {
+    setTroopId(id.toString());
+    setSuggestions([]);
+  };
 
   const predictSales = async () => {
     if (!troopId || !numGirls) {
@@ -45,40 +70,48 @@ function App() {
     }
 
     try {
-      const resPred = await fetch("http://127.0.0.1:5000/api/predict", {
+      const resPred = await fetch("/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           troop_id: troopId,
           num_girls: numGirls,
-          year: 2024,
-        }),
+          year: 2024
+        })
       });
-      const dataPred = await resPred.json();
-      setPredictions(dataPred);
+      const predData = await resPred.json();
+      setPredictions(predData);
 
-      const resHist = await fetch(`http://127.0.0.1:5000/api/history/${troopId}`);
-      const dataHist = await resHist.json();
-      if (!dataHist.error) {
-        setPastSalesData(dataHist.totalSalesByPeriod);
-        setGirlsData(dataHist.girlsByPeriod);
-      }
+      const resHist = await fetch(`/api/history/${troopId}`);
+      const histData = await resHist.json();
 
-      const resBreak = await fetch(`http://127.0.0.1:5000/api/cookie_breakdown/${troopId}`);
-      const dataBreak = await resBreak.json();
-      setCookieBreakdownData(dataBreak);
-      const keys = dataBreak.length > 0 ? Object.keys(dataBreak[0]).filter((k) => k !== "period") : [];
-      setCookieTypes(keys);
+      const resBreak = await fetch(`/api/cookie_breakdown/${troopId}`);
+      const breakData = await resBreak.json();
+
+      setAnalytics({
+        sales: histData.totalSalesByPeriod || [],
+        girls: histData.girlsByPeriod || [],
+        breakdown: breakData || []
+      });
     } catch (err) {
-      console.error("Error during prediction:", err);
+      console.error("Error fetching data:", err);
     }
   };
+
+  const getColor = (idx) => {
+    const palette = [
+      "#8884d8", "#82ca9d", "#ffc658", "#d0ed57", "#a4de6c",
+      "#8dd1e1", "#d88884", "#ad8de1", "#84d8a4", "#e1cf8d"
+    ];
+    return palette[idx % palette.length];
+  };
+
+  const cookieKeys = analytics.breakdown.length > 0 ? Object.keys(analytics.breakdown[0]).filter(key => key !== "period") : [];
 
   return (
     <div>
       <div className="background"></div>
       <div className="overlay"></div>
-
       <div className="header">
         <div>
           <img src="GSC(2).png" alt="GSCI Logo" />
@@ -86,14 +119,22 @@ function App() {
         </div>
         <a href="manual.html" className="manual">Manual</a>
       </div>
-
       <div className="title">Cookie Forecasting Model</div>
       <div className="subtitle">Forecasting Sales, One Cookie at a Time</div>
 
       <div className="input-container">
         <p>Enter the details below to forecast cookie sales</p>
         <div className="input-box">
-          Enter Troop ID: <input type="text" value={troopId} onChange={(e) => setTroopId(e.target.value)} />
+          Enter Troop ID: <input type="text" value={troopId} onChange={handleTroopChange} />
+          {suggestions.length > 0 && (
+            <ul className="suggestions-list">
+              {suggestions.map((id) => (
+                <li key={id} onClick={() => handleSuggestionClick(id)}>
+                  {id}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="input-box">
           Enter Number of Girls Participating: <input type="text" value={numGirls} onChange={(e) => setNumGirls(e.target.value)} />
@@ -108,12 +149,12 @@ function App() {
         <>
           <div className="predictions">PREDICTIONS</div>
           <div className="cookie-grid">
-            {predictions.map((cookie) => (
-              <div className="cookie-box" key={cookie.cookie_type}>
+            {predictions.map((cookie, i) => (
+              <div className="cookie-box" key={i}>
                 <img src={cookie.image_url} alt={cookie.cookie_type} />
                 <div className="cookie-info">
-                  <strong>{cookie.cookie_type}</strong><br />
-                  Predicted Cases: <span>{cookie.predicted_cases}</span><br />
+                  <strong>{cookie.cookie_type}</strong><br/>
+                  Predicted Cases: <span>{cookie.predicted_cases}</span><br/>
                   Interval: <span>[{cookie.interval_lower}, {cookie.interval_upper}]</span>
                 </div>
               </div>
@@ -122,76 +163,57 @@ function App() {
         </>
       )}
 
-      {pastSalesData.length > 0 && girlsData.length > 0 && (
-        <>
-          <div className="analytics-title">ANALYTICS</div>
-          <div className="analysis-section">
-            <div className="chart-container">
-              <h4>Total Cookie Sales by Year</h4>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={pastSalesData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="period" tickFormatter={periodToYear} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="totalSales" stroke="#8884d8" strokeWidth={3} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="chart-container">
-              <h4>Number of Girls (Avg) by Year</h4>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={girlsData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="period" tickFormatter={periodToYear} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="numberOfGirls" fill="#82ca9d" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </>
+      {(analytics.sales.length > 0 || analytics.girls.length > 0 || analytics.breakdown.length > 0) && (
+        <div className="analytics-title">ANALYTICS</div>
       )}
-
-      {cookieBreakdownData.length > 0 && (
-        <div className="breakdown-section">
-          <h2>Cumulative Cookie Breakdown by Year</h2>
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={cookieBreakdownData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="period" tickFormatter={periodToYear} />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                {cookieTypes.map((ct, idx) => (
-                  <Bar
-                    key={ct}
-                    dataKey={ct}
-                    stackId="a"
-                    fill={getColor(idx)}
-                    name={ct}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <div className="analysis-section">
+        <div className="analysis-box">
+          <h4>Total Sales by Year</h4>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={analytics.sales}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="period" tickFormatter={periodToYear} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="totalSales" stroke="#8884d8" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-      )}
+        <div className="analysis-box">
+          <h4>Number of Girls by Year</h4>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={analytics.girls}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="period" tickFormatter={periodToYear} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="numberOfGirls" fill="#82ca9d" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="analysis-box">
+          <h4>Cookie Breakdown by Year</h4>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={analytics.breakdown}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="period" tickFormatter={periodToYear} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              {cookieKeys.map((key, idx) => (
+                <Bar key={key} dataKey={key} stackId="a" fill={getColor(idx)} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="analysis-box">
+          <h4>More Analytics Coming Soon</h4>
+        </div>
+      </div>
     </div>
   );
-}
-
-function getColor(idx) {
-  const palette = [
-    "#8884d8", "#82ca9d", "#ffc658", "#d0ed57", "#a4de6c",
-    "#8dd1e1", "#d88884", "#ad8de1", "#84d8a4", "#e1cf8d"
-  ];
-  return palette[idx % palette.length];
 }
 
 export default App;
