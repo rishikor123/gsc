@@ -8,7 +8,7 @@ import time
 import re
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
 warnings.simplefilter("ignore", category=RuntimeWarning)
