@@ -13,45 +13,16 @@ import {
 } from "recharts";
 import "./index.css";
 
-function periodToYear(period) {
-  return 2019 + period;
-}
+const periodToYear = (period) => 2019 + period;
 
-function App() {
+const App = () => {
   const [troopId, setTroopId] = useState("");
   const [numGirls, setNumGirls] = useState("");
   const [suUnit, setSuUnit] = useState("");
   const [predictions, setPredictions] = useState([]);
   const [analytics, setAnalytics] = useState({ sales: [], girls: [], breakdown: [] });
-  const [allTroopIds, setAllTroopIds] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
 
-  useEffect(() => {
-    fetch("http://localhost:5000/api/troop_ids")
-      .then((res) => res.json())
-      .then((data) => setAllTroopIds(data))
-      .catch((err) => console.error("Error fetching troop IDs:", err));
-  }, []);
-
-  const handleTroopChange = (e) => {
-    const value = e.target.value;
-    setTroopId(value);
-    if (!value) {
-      setSuggestions([]);
-      return;
-    }
-    const filtered = allTroopIds.filter((id) =>
-      id.toString().startsWith(value)
-    );
-    setSuggestions(filtered);
-  };
-
-  const handleSuggestionClick = (id) => {
-    setTroopId(id.toString());
-    setSuggestions([]);
-  };
-
-  const predictSales = async () => {
+  const handlePredict = async () => {
     if (!troopId || !numGirls) {
       alert("Please enter Troop ID and Number of Girls.");
       return;
@@ -109,22 +80,14 @@ function App() {
         </div>
         <a href="manual.html" className="manual">Manual</a>
       </div>
+
       <div className="title">Cookie Forecasting Model</div>
       <div className="subtitle">Forecasting Sales, One Cookie at a Time</div>
 
       <div className="input-container">
         <p>Enter the details below to forecast cookie sales</p>
         <div className="input-box">
-          Enter Troop ID: <input type="text" value={troopId} onChange={handleTroopChange} />
-          {suggestions.length > 0 && (
-            <ul className="suggestions-list">
-              {suggestions.map((id) => (
-                <li key={id} onClick={() => handleSuggestionClick(id)}>
-                  {id}
-                </li>
-              ))}
-            </ul>
-          )}
+          Enter Troop ID: <input type="text" value={troopId} onChange={(e) => setTroopId(e.target.value)} />
         </div>
         <div className="input-box">
           Enter Number of Girls Participating: <input type="text" value={numGirls} onChange={(e) => setNumGirls(e.target.value)} />
@@ -132,7 +95,7 @@ function App() {
         <div className="input-box">
           Enter SU Unit: <input type="text" value={suUnit} onChange={(e) => setSuUnit(e.target.value)} />
         </div>
-        <button className="predict-button" onClick={predictSales}>Predict</button>
+        <button className="predict-button" onClick={handlePredict}>Predict</button>
       </div>
 
       {predictions.length > 0 && (
@@ -141,10 +104,10 @@ function App() {
           <div className="cookie-grid">
             {predictions.map((cookie, i) => (
               <div className="cookie-box" key={i}>
-                <img src={`http://localhost:5000${cookie.image_url}`} alt={cookie.cookie_type} />
+                <img src={cookie.image_url} alt={cookie.cookie_type} />
                 <div className="cookie-info">
-                  <strong>{cookie.cookie_type}</strong><br/>
-                  Predicted Cases: <span>{cookie.predicted_cases}</span><br/>
+                  <strong>{cookie.cookie_type}</strong><br />
+                  Predicted Cases: <span>{cookie.predicted_cases}</span><br />
                   Interval: <span>[{cookie.interval_lower}, {cookie.interval_upper}]</span>
                 </div>
               </div>
@@ -170,6 +133,7 @@ function App() {
             </LineChart>
           </ResponsiveContainer>
         </div>
+
         <div className="analysis-box">
           <h4>Number of Girls by Year</h4>
           <ResponsiveContainer width="100%" height={300}>
@@ -183,6 +147,7 @@ function App() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+
         <div className="analysis-box">
           <h4>Cookie Breakdown by Year</h4>
           <ResponsiveContainer width="100%" height={300}>
@@ -198,12 +163,13 @@ function App() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+
         <div className="analysis-box">
           <h4>More Analytics Coming Soon</h4>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default App;
