@@ -136,10 +136,17 @@ def run_ridge_interval_analysis():
 
 run_ridge_interval_analysis()
 
+# -------------------------------
+# (OLD) MAIN ROUTE (JINJA) - optional
+# -------------------------------
 @app.route('/')
 def index():
+    # Just serve your old Jinja template if needed
     return render_template('index.html')
 
+# -------------------------------
+# NEW API ROUTES
+# -------------------------------
 @app.route('/api/troop_ids', methods=['GET'])
 def get_troop_ids():
     troop_ids = sorted(df['troop_id'].unique().tolist())
@@ -175,15 +182,15 @@ def api_predict():
 
     predictions = []
     cookie_images = {
-        "Adventurefuls": "ADVEN.png",
-        "Do-Si-Dos": "DOSI.png",
-        "Lemon-Ups": "LMNUP.png",
-        "Samoas": "SAM.png",
-        "Tagalongs": "TAG.png",
-        "Thin Mints": "THIN.png",
-        "Toffee-Tastic": "TFTAS.png",
-        "Trefoils": "TREF.png",
-        "S'mores": "SMORE.png"
+        "Adventurefuls": "adventurefuls.jpg",
+        "Do-Si-Dos": "do_si_dos.jpg",
+        "Samoas": "samoas.jpg",
+        "S'mores": "smores.jpg",
+        "Tagalongs": "tagalongs.jpg",
+        "Thin Mints": "thin_mints.jpg",
+        "Toffee-tastic": "toffee_tastic.jpg",
+        "Trefoils": "trefoils.jpg",
+        "Lemon-Ups": "lemon_ups.jpg"
     }
 
     df_troop['canonical_cookie_type'] = df_troop['cookie_type'].apply(normalize_cookie_type)
@@ -194,7 +201,7 @@ def api_predict():
             last_val = group.loc[group['period'] == last_period, 'number_cases_sold'].mean()
             interval_lower = max(last_val - interval_width, 1)
             interval_upper = last_val + interval_width
-            img_file = cookie_images.get(cookie_type, 'default.png')
+            img_file = cookie_images.get(cookie_type, 'default.jpg')
             img_url = url_for('static', filename=img_file, _external=True)
             predictions.append({
                 "cookie_type": cookie_type,
@@ -222,7 +229,7 @@ def api_predict():
             interval_lower = max(predicted_cases - interval_width, 1)
             interval_upper = predicted_cases + interval_width
 
-            img_file = cookie_images.get(cookie_type, 'default.png')
+            img_file = cookie_images.get(cookie_type, 'default.jpg')
             img_url = url_for('static', filename=img_file, _external=True)
 
             predictions.append({
@@ -239,10 +246,16 @@ def api_predict():
 
 @app.route('/api/history/<int:troop_id>', methods=['GET'])
 def get_troop_history(troop_id):
+    """
+    Return line/bar data:
+      - totalSalesByPeriod
+      - girlsByPeriod
+    """
     troop_df = df[df['troop_id'] == troop_id].copy()
     if troop_df.empty:
         return jsonify({"error": "No data found"}), 404
 
+    # Summation of all cookies sold per period
     grouped_sales = troop_df.groupby('period')['number_cases_sold'].sum().reset_index()
     total_sales = []
     for _, row in grouped_sales.iterrows():
@@ -251,6 +264,7 @@ def get_troop_history(troop_id):
             "totalSales": float(row['number_cases_sold'])
         })
 
+    # Average # of girls by period
     grouped_girls = troop_df.groupby('period')['number_of_girls'].mean().reset_index()
     girls_data = []
     for _, row in grouped_girls.iterrows():
@@ -266,15 +280,30 @@ def get_troop_history(troop_id):
 
 @app.route('/api/cookie_breakdown/<int:troop_id>', methods=['GET'])
 def get_cookie_breakdown(troop_id):
+    """
+    Return a pivoted structure for each period, with each cookie type's total:
+      [
+        { period: 1, "Thin Mints": 100, "Samoas": 50, ... },
+        { period: 2, "Thin Mints": 120, "Samoas": 80, ... },
+        ...
+      ]
+    For a stacked bar chart.
+    """
     troop_df = df[df['troop_id'] == troop_id].copy()
     if troop_df.empty:
         return jsonify([])
 
+    # group by (period, cookie_type), sum
     grouped = troop_df.groupby(['period', 'canonical_cookie_type'])['number_cases_sold'].sum().reset_index()
-    pivoted = grouped.pivot(index='period', columns='canonical_cookie_type', values='number_cases_sold').fillna(0)
-    pivoted.reset_index(inplace=True)
 
+    # pivot so each row is one period, columns are cookie types
+    pivoted = grouped.pivot(index='period', columns='canonical_cookie_type', values='number_cases_sold').fillna(0)
+    pivoted.reset_index(inplace=True)  # so period is a column again
+
+    # Convert to a list of dicts for Recharts
     data_list = pivoted.to_dict(orient='records')
+    # data_list might look like:
+    # [ { 'period':1, 'Thin Mints':100, 'Samoas':50, ...}, { 'period':2, ... }, ...]
 
     return jsonify(data_list)
 
