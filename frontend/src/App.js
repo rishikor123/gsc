@@ -11,7 +11,7 @@ import {
   Legend,
   ResponsiveContainer
 } from "recharts";
-import "./index.css";
+import "./index.css"; // Make sure this path is correct based on your structure
 
 const periodToYear = (period) => 2019 + period;
 
