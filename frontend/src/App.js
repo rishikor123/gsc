@@ -1,5 +1,4 @@
-// App.js
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -14,6 +13,8 @@ import {
 } from "recharts";
 import "./index.css";
 
+const API_BASE = "http://127.0.0.1:5000"; // or use environment variable for flexibility
+
 const cookies = [
   { name: "Adventurefuls", image: "ADVEN.png" },
   { name: "Do-Si-Dos", image: "DOSI.png" },
@@ -21,7 +22,7 @@ const cookies = [
   { name: "Samoas", image: "SAM.png" },
   { name: "Tagalongs", image: "TAG.png" },
   { name: "Thin Mints", image: "THIN.png" },
-  { name: "Toffee-Tastic", image: "TFTAS.png" },
+  { name: "Toffee-tastic", image: "TFTAS.png" },
   { name: "Trefoils", image: "TREF.png" },
   { name: "S'mores", image: "SMORE.png" },
 ];
@@ -42,7 +43,7 @@ function App() {
 
   const handlePredict = async () => {
     try {
-      const resPred = await fetch("http://127.0.0.1:5000/api/predict", {
+      const resPred = await fetch(`${API_BASE}/api/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -54,21 +55,23 @@ function App() {
       const dataPred = await resPred.json();
       const formatted = {};
       dataPred.forEach((d) => {
-        formatted[d.cookie_type] = {
+        const key = d.cookie_type.trim().toLowerCase();
+        formatted[key] = {
           predictedCases: d.predicted_cases,
           interval: [d.interval_lower, d.interval_upper],
+          imageUrl: d.image_url,
         };
       });
       setPredictions(formatted);
 
-      const resHist = await fetch(`http://127.0.0.1:5000/api/history/${troopId}`);
+      const resHist = await fetch(`${API_BASE}/api/history/${troopId}`);
       const dataHist = await resHist.json();
       if (!dataHist.error) {
         setPastSalesData(dataHist.totalSalesByPeriod);
         setGirlsData(dataHist.girlsByPeriod);
       }
 
-      const resBreak = await fetch(`http://127.0.0.1:5000/api/cookie_breakdown/${troopId}`);
+      const resBreak = await fetch(`${API_BASE}/api/cookie_breakdown/${troopId}`);
       const dataBreak = await resBreak.json();
       setCookieBreakdownData(dataBreak);
       if (dataBreak.length > 0) {
@@ -89,8 +92,8 @@ function App() {
 
       <header className="header">
         <div>
-          <img src="GSC(2).png" alt="GSCI Logo" />
-          <img src="KREN.png" alt="KREN Logo" />
+          <img src={`${API_BASE}/static/GSC(2).png`} alt="GSCI Logo" />
+          <img src={`${API_BASE}/static/KREN.png`} alt="KREN Logo" />
         </div>
         <a href="manual.html" className="manual">Manual</a>
       </header>
@@ -114,18 +117,25 @@ function App() {
 
       <div className="predictions">PREDICTIONS</div>
       <div className="cookie-grid">
-        {cookies.map((cookie) => (
-          <div key={cookie.name} className="cookie-box">
-            <img src={cookie.image} alt={cookie.name} />
-            <div className="cookie-info">
-              <strong>{cookie.name}</strong>
-              <br />
-              Predicted Cases: <span>{predictions[cookie.name]?.predictedCases ?? "--"}</span>
-              <br />
-              Interval: <span>{predictions[cookie.name] ? `[${predictions[cookie.name].interval[0]}, ${predictions[cookie.name].interval[1]}]` : "--"}</span>
+        {cookies.map((cookie) => {
+          const key = cookie.name.trim().toLowerCase();
+          const pred = predictions[key];
+          return (
+            <div key={cookie.name} className="cookie-box">
+              <img
+                src={pred?.imageUrl || `${API_BASE}/static/${cookie.image}`}
+                alt={cookie.name}
+              />
+              <div className="cookie-info">
+                <strong>{cookie.name}</strong>
+                <br />
+                Predicted Cases: <span>{pred?.predictedCases ?? "--"}</span>
+                <br />
+                Interval: <span>{pred ? `[${pred.interval[0]}, ${pred.interval[1]}]` : "--"}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="analytics-title">ANALYTICS</div>
@@ -178,18 +188,13 @@ function App() {
 
 function getColor(idx) {
   const palette = [
-    "#8884d8",
-    "#82ca9d",
-    "#ffc658",
-    "#d0ed57",
-    "#a4de6c",
-    "#8dd1e1",
-    "#d88884",
-    "#ad8de1",
-    "#84d8a4",
-    "#e1cf8d",
+    "#8884d8", "#82ca9d", "#ffc658", "#d0ed57", "#a4de6c",
+    "#8dd1e1", "#d88884", "#ad8de1", "#84d8a4", "#e1cf8d",
   ];
   return palette[idx % palette.length];
 }
 
 export default App;
+
+
+
