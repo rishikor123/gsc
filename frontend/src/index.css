@@ -147,11 +147,11 @@ body {
 
 .cookie-info {
   padding-left: 10px;
-  font-size: 14px; /* general size */
+  font-size: 12px; /* general size */
 }
 
 .cookie-info span {
-  font-size: 12px; /* make predicted values smaller */
+  font-size: 10px; /* make predicted values smaller */
 }
 
 .analysis-section {
