@@ -1,6 +1,6 @@
 // App.js
 import React, { useState } from 'react';
-import './index.css';
+import './manual.css';
 
 function App() {
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
