@@ -19,7 +19,7 @@ body, html, .App {
 }
 
 .background {
-  background: url('BACK.jpg') no-repeat center center/cover;
+  background: url('http://127.0.0.1:5000/static/BACK.jpg') no-repeat center center/cover;
   z-index: -2;
 }
 
