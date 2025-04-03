@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Forecasting Manual</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Source Sans Pro', sans-serif;
+            background: black;
+            color: white;
+        }
+        .background, .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        .background {
+            background: url('BACK.jpg') no-repeat center center/cover;
+            z-index: -2;
+        }
+        .overlay {
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 20px;
+            background: black;
+            height: 0.6in;
+        }
+        .header img {
+            height: 60px;
+            margin: 0 10px;
+        }
+        .back-home {
+            background: purple;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            position: absolute;
+            right: 20px;
+            top: 15px;
+        }
+        .title {
+            text-align: center;
+            font-size: 36px;
+            font-weight: bold;
+            margin-top: 80px;
+        }
+        .content {
+            text-align: center;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: white;
+            color: black;
+            border-radius: 10px;
+        }
+        .view-details {
+            display: block;
+            margin: 20px auto;
+            padding: 12px 24px;
+            background: purple;
+            color: white;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: background 0.3s ease;
+        }
+        .view-details:hover {
+            background: #a347a3;
+        }
+        .toggle-theme {
+            display: block;
+            margin: 10px auto;
+            background: #444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s ease;
+        }
+        .toggle-theme:hover {
+            background: #666;
+        }
+        .details-section {
+            display: none;
+            text-align: left;
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 30px;
+            background: white;
+            color: black;
+            border-radius: 12px;
+            animation: fadeIn 1s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from {opacity: 0; transform: translateY(20px);}
+            to {opacity: 1; transform: translateY(0);}
+        }
+        .details-section h2 {
+            border-bottom: 2px solid #a347a3;
+            padding-bottom: 5px;
+            color: #a347a3;
+            cursor: pointer;
+        }
+        .details-section img {
+            display: block;
+            width: 100%;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .pdf-link {
+            text-align: center;
+            margin: 40px auto;
+        }
+        .pdf-link a {
+            display: inline-block;
+            padding: 14px 24px;
+            background: purple;
+            color: white;
+            font-size: 18px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background 0.3s ease;
+        }
+        .pdf-link a:hover {
+            background: #a347a3;
+        }
+        .light-mode {
+            background: white;
+            color: black;
+        }
+        .light-mode .content,
+        .light-mode .details-section {
+            background: #f5f5f5;
+            color: #222;
+        }
+    </style>
+</head>
+<body>
+    <div class="background"></div>
+    <div class="overlay"></div>
+    <div class="header">
+        <img src="GSC(2).png" alt="GSCI Logo">
+        <img src="KREN.png" alt="KREN Logo">
+        <a href="MockGS.html" class="back-home">Back to Home</a>
+    </div>
+    <div class="title">Cookie Forecasting Manual</div>
+    <div class="content">
+        <p>Explore how predictive analytics can help Girl Scouts maximize cookie sales.</p>
+        <p>Click the button below to explore data-driven insights, model findings, and outcomes.</p>
+        <button class="view-details" onclick="showDetails()">View Details</button>
+        <button class="toggle-theme" onclick="toggleTheme()">Toggle Theme</button>
+    </div>
+
+    <div class="details-section" id="details">
+        <h2>Business Problem</h2>
+        <p>Every year, thousands of Girl Scouts rely on cookie sales for fundraising. The current forecast method—based solely on the previous year’s numbers—explains only 70% of sales variability. This limitation often leads to missed revenue opportunities or excess stock. By leveraging advanced predictive models, we can bridge this gap and unlock new opportunities for growth, efficiency, and increased fundraising success.</p>
+
+        <h2>Key Benefits</h2>
+        <ul>
+            <li>Improved inventory planning and cost savings</li>
+            <li>Enhanced Marketing Strategies</li>
+            <li>IncreasedTroop Engagement</li>
+            <li>Data Driven Decision Making</li>
+        </ul>
+
+        <h2>Analytical Problem</h2>
+        <p><strong>Analytical Context:</strong> The context involves analyzing historical sales data and external factors to improve forecasting accuracy by troop and cookie type.</p>
+        <p><strong>Challenges:</strong> Challenges include high variance in sales across troops and regions, impact from external factors like weather and local events, and ensuring model reliability for troop leaders.</p>
+        <p><strong>Solution Focus:</strong> The solution focuses on implementing machine learning models to enhance forecasting accuracy and optimize inventory management.</p>
+
+        <h2>Research Questions</h2>
+        <ul>
+            <li> Can machine learning models effectively integrate historical sales data, troop participation rates to improve the accuracy of cookie sales forecasts beyond traditional methods?</li>
+            <li>How can insights from predictive models be used to optimize inventory management and marketing strategies for Girl Scout troops, ensuring that each troop meets demand without costly surplus or shortages?</li>
+        </ul>
+
+        <h2>Data Dictionary</h2>
+        <img src="ch5.png" alt="Data Results">
+        <img src="Ch1.png" alt="Data Chart">
+
+        <h2>Model Selection</h2>
+  <strong>ASSUMPTIONS:</strong><ul><li> The model assumes past sales patterns are predictive of future sales performance.</li><li>No major disruptions in cookie availability, troop operations, or supply chains are expected.</li> </ul>
+
+<strong>LIMITATION:</strong><ul><li> The model may underperform for troops with limited or erratic historical data. </li></ul>
+
+<strong>SPLITTING:</strong><ul><li> The dataset is grouped by troop ID and cookie type. For each group, the data is split by year into Training (2020–2023) and Testing (2024). </li> <li>Cluster-based modeling is applied within each location and cookie type, allowing for more personalized predictions.</li> </ul>
+
+<strong>BASE MODEL APPROACHES:</strong> <ul> <li><strong>SIO Model:</strong> Uses last year’s sales and troop participation to estimate.
+</li> <li><strong>AVG Model:</strong> Averages past sales from 2021-2023 to predict 2024. However, these models had higher RMSE values, indicating significant prediction errors. </li>
+ </ul>
+        <img src="Ch2.jpg" alt="Base Model Chart">
+        <p>To improve accuracy, we built a Hybrid Multi-Model system that automatically selects the best among Clustered Ridge Regression, Troop-Level Ridge Regression, Linear Regression, SIO & Average, and Location-Level Ridge Regression. Each troop-cookie prediction uses the method with the lowest error, dynamically chosen based on past performance. We tested other models and found the Hybrid had the best performance.
+
+</p>
+        <img src="ch4.jpg" alt="Model Selection Chart">
+
+        <h2>Validation</h2>
+
+<p><strong>Confidence in Predictions:</strong> Model predictions are validated using cross-validation (CV) within each training group to optimize regularization strength (λ), minimizing overfitting and ensuring stable performance across troops and cookie types.</p>
+        <p><strong>Dynamic Error-Based Method Selection:</strong> For each troop-cookie pair, the model dynamically selects the prediction method with the lowest expected error (MSE), based on past performance. This approach ensures predictions are customized and evidence-driven.</p>
+        <p><strong>Robustness Across Segments:</strong> The use of clustering + Ridge + fallback heuristics allows the model to adapt to sparse, dense, and even noisy troop histories—leading to consistent accuracy improvements over baseline models.</p>
+
+
+
+        <h2>Final Model Results</h2>
+        <img src="metric.jpg" alt="Metrics">
+
+        <h2>Key Findings</h2>
+	<p>Our Hybrid Multi-Model approach, which blends Ridge Regression (with CV), linear models, and PGA heuristics, achieved the highest R² and lowest error metrics, highlighting its adaptability and accuracy. The model dynamically selects the best prediction method (from 6 options) for each troop-cookie pair, based on historical performance and data quality. 
+</p>
+<p>By improving prediction accuracy by 1.35 cases per troop per cookie type compared to the SIO tool, our model provided a significant advantage in planning and inventory. Scaled across 1,401 troops, 8 cookie types, and 12 boxes per case, this translates to a potential impact of over 181,000 boxes—equivalent to more than 
+</p>
+        <img src="KF.JPG" alt="Key Findings Graphic" style="margin-top: 20px; border-radius: 10px;">
+
+<p>This enables GS Indiana to optimize inventory, reduce over-ordering, and boost revenue for smarter, more profitable decisions.
+</p>
+
+        <h2>Model Life Cycle</h2>
+        <img src="ch6.jpg" alt="Model Life Cycle">
+
+        <div class="pdf-link">
+            <a href="SC.pdf" target="_blank">View Full Poster PDF</a>
+        </div>
+    </div>
+
+    <script>
+       function showDetails() {
+            const details = document.getElementById('details');
+            details.style.display = 'block';
+            details.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+        }
+    </script>
+</body>
+</html>
