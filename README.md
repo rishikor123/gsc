@@ -1,6 +1,6 @@
 # 🍪 Smart Cookies: A Predictive Approach to Girl Scout Cookie Sales
 
-> A hybrid, multi-model machine learning system that forecasts Girl Scout cookie demand at the **troop and cookie-type level**, replacing a legacy method that explained only ~10% of sales variability — and unlocking an estimated **$1.09M** in value for Girl Scouts of Central Indiana.
+> A full-stack web application that forecasts Girl Scout cookie demand at the **troop and cookie-type level** using a hybrid, multi-model machine learning system — replacing a legacy method that explained only ~10% of sales variability and unlocking an estimated **$1.09M** in value for Girl Scouts of Central Indiana.
 
 **Presented at the INFORMS Analytics Conference and the Purdue Undergraduate Research Conference (2nd Place, Applied Analytics Impact).**
 
@@ -14,7 +14,7 @@
 
 Every year, thousands of Girl Scouts rely on cookie sales for fundraising. The existing forecasting method — based solely on the **previous year's numbers** — explained only about **10% of sales variability**, frequently leading to **missed revenue (under-ordering)** or **excess stock (over-ordering)**.
 
-This project builds a data-driven alternative: a **Hybrid Multi-Model** forecasting system that integrates historical sales, troop participation, and seasonality to predict demand for **each troop and each cookie type**, automatically choosing the best-performing model per segment.
+This project builds a data-driven alternative: a **Hybrid Multi-Model** forecasting system, wrapped in a **Flask web app**, that integrates historical sales, troop participation, and seasonality to predict demand for **each troop and each cookie type** — automatically choosing the best-performing model per segment and serving the results through an interactive interface.
 
 ### Key Results
 
@@ -27,6 +27,16 @@ This project builds a data-driven alternative: a **Hybrid Multi-Model** forecast
 | Additional boxes correctly forecasted | **181,000+** |
 | Estimated value generated | **$1,089,000+** |
 | Scale | **1,401 troops · 8 cookie types · 12 boxes/case** |
+
+---
+
+## 🖥️ The Application
+
+A full-stack app that puts the forecasting model in the hands of non-technical users (troop leaders and council staff):
+
+- **Backend — `app.py` (Flask):** loads `FinalCookieSales.csv`, runs the hybrid forecasting logic, and serves predictions to the frontend.
+- **Frontend — `templates/index.html` + `static/index.css` + `frontend/manualapp.js`:** an interactive UI for exploring troop-level forecasts and sales trends.
+- **Deployment — `Procfile`:** defines the web process for one-click deployment to platforms like Heroku or Render.
 
 ---
 
@@ -50,6 +60,8 @@ By improving prediction accuracy per troop–cookie pair over the legacy SIO too
 
 ## 🗂️ Dataset
 
+The app runs against **`FinalCookieSales.csv`**, included in the repository.
+
 | Property | Detail |
 |---|---|
 | Rows | 68,966 |
@@ -71,7 +83,6 @@ By improving prediction accuracy per troop–cookie pair over the legacy SIO too
 - **Outliers:** extreme cases removed after validation.
 - **Missing values:** minimal; handled through imputation.
 
-> ⚠️ The underlying sales data belongs to Girl Scouts of Central Indiana and is **not** included in this repository. See [Data Access](#-data-access) below.
 
 ---
 
@@ -82,7 +93,7 @@ By improving prediction accuracy per troop–cookie pair over the legacy SIO too
 3. **Exploratory Data Analysis** — segment sales by troop; time-series decomposition to surface patterns; visual analysis of seasonality and trends.
 4. **Modeling & Validation** — group by troop × cookie type; split by year into **train (2020–2023)** and **test (2024)**; evaluate Ridge, Random Forest, Polynomial, XGBoost, and Linear Regression; validate with an RMSE-based heuristic.
 5. **Predictive Modeling** — dynamic selection of the best model per segment using RMSE, MSE, MAE, MAPE, and R².
-6. **Reporting & Insights** — troop-level forecasts, next-cycle quantity predictions, and a recommendations report (plus a demo for sales-trend exploration).
+6. **Reporting & Insights** — troop-level forecasts and next-cycle quantity predictions, surfaced through the web app.
 
 **Language:** Python
 
@@ -120,11 +131,11 @@ Each prediction uses the method with the **lowest expected error**, chosen dynam
 ## 🛠️ Tech Stack
 
 - **Language:** Python
-- **Core libraries:** pandas, NumPy, scikit-learn (Ridge, LinearRegression, RandomForest, Polynomial features), XGBoost
+- **Web framework:** Flask
+- **ML / data:** pandas, NumPy, scikit-learn (Ridge, LinearRegression, RandomForest, Polynomial features), XGBoost
 - **Preprocessing:** `StandardScaler`, cross-validation
-- **Visualization / reporting:** Matplotlib / Seaborn, plus a sales-trend demo
-
-> _Update this list to match the exact libraries imported in the notebook._
+- **Frontend:** HTML, CSS, JavaScript
+- **Deployment:** Gunicorn + `Procfile` (Heroku / Render-ready)
 
 ---
 
@@ -132,19 +143,18 @@ Each prediction uses the method with the **lowest expected error**, chosen dynam
 
 ```
 smart-cookies/
-├── data/                 # (gitignored) raw + processed data — not committed
-├── notebooks/            # exploration, EDA, and modeling notebooks
-├── src/                  # reusable code (preprocessing, models, evaluation)
-│   ├── preprocessing.py
-│   ├── models.py
-│   └── evaluate.py
-├── reports/              # figures, results, and the conference poster
-│   └── smart_cookies_poster.png
+├── frontend/
+│   └── manualapp.js        # frontend logic
+├── static/
+│   └── index.css           # styling
+├── templates/
+│   └── index.html          # main page (Flask template)
+├── FinalCookieSales.csv    # sales dataset used by the app
+├── app.py                  # Flask backend: forecasting + serving predictions
+├── Procfile                # process definition for deployment (gunicorn)
 ├── requirements.txt
 └── README.md
 ```
-
-> _Adjust to match your actual file layout once you commit the code._
 
 ---
 
@@ -157,30 +167,27 @@ cd smart-cookies
 
 # 2. (Recommended) create a virtual environment
 python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run the analysis
-jupyter notebook notebooks/
+# 4. Run the app locally
+python app.py                   # or: flask run  /  gunicorn app:app
 ```
 
-> _TODO: replace with your real run commands / entry point once the code is in the repo._
+Then open the app in your browser (Flask defaults to **http://127.0.0.1:5000**).
+
+### Deployment
+The `Procfile` defines the web process (e.g., `web: gunicorn app:app`), so the app deploys directly to platforms like **Heroku** or **Render**. Push the repo, set the build to install `requirements.txt`, and the platform runs the process from the `Procfile`.
 
 ---
 
-## 🔒 Data Access
-
-The sales dataset is proprietary to **Girl Scouts of Central Indiana** and is not distributed here. The code is structured to run against a CSV with the schema described in [Dataset](#-dataset). To reproduce results, supply your own data matching that schema in `data/`.
-
----
-
-## 🔄 Model Lifecycle & Future Work
+## 🔄 Future Work
 
 - **Improve data collection & quality** — maintain detailed sales histories for more precise forecasting and better generalization.
 - **Incorporate external factors** — weather, marketing efforts, and regional trends to further refine accuracy.
-- **Operationalize** — use for troop-level forecasting to minimize error and maximize predictive accuracy.
+- **Operationalize** — expand the app for council-wide troop-level forecasting.
 - **Retrain regularly** — refresh with new data, gather user feedback, and adapt to changing business needs.
 
 ---
