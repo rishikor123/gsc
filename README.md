@@ -188,9 +188,3 @@ The sales dataset is proprietary to **Girl Scouts of Central Indiana** and is no
 ## 🙏 Acknowledgements
 
 Thanks to **Professor Davi Moreira** for guidance and support throughout the project, to the **Girl Scouts of Central Indiana** for providing the data central to this work, and to the **Krenicki Center for Business Analytics & Machine Learning** for its support and resources.
-
----
-
-## 📄 License
-
-_Choose a license (e.g., MIT) for the code. Note that the dataset is not covered by this license and remains the property of Girl Scouts of Central Indiana._
